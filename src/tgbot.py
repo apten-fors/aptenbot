@@ -147,9 +147,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
-    if not await is_subscriber(user_id, update.get_bot()):
-        await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
-        return
+    chat_type = update.message.chat.type
+
+    if chat_type in ['group', 'supergroup']:
+        if not await is_subscriber(user_id, update.get_bot()):
+            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+            return
 
     if not update.message.reply_to_message:
         await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
@@ -207,7 +210,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("reset", reset_session))
 
     # Register message handlers
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & filters.REPLY, handle_reply))
+    app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, handle_reply))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_message))
 
     logger.info("Starting the bot application")
