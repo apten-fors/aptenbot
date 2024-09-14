@@ -9,8 +9,9 @@ from typing import Dict, List, Union
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.error import TelegramError
+from telegram.error import TelegramError, BadRequest
 from openai import AsyncOpenAI
+from openai import OpenAIError, RateLimitError
 from pythonjsonlogger import jsonlogger
 
 
@@ -84,6 +85,9 @@ async def send_message_with_retry(update: Update, text: str) -> None:
             await update.message.reply_text(text)
             return
         except TelegramError as e:
+            if isinstance(e, BadRequest):
+                logger.error(f"Bad request error: {e}")
+                return
             if attempt == MAX_RETRIES - 1:
                 logger.error(f"Failed to send message after {MAX_RETRIES} attempts: {e}")
                 raise
@@ -97,6 +101,30 @@ async def is_subscriber(user_id: int, bot) -> bool:
     except Exception as e:
         logger.error(f"Error checking subscription status: {e}")
         return False
+
+async def process_message(user_message: str, session: List[Dict[str, str]]) -> str:
+    session.append({"role": "user", "content": user_message})
+
+    try:
+        logger.info("Sending request to OpenAI API")
+        async with get_openai_client() as client:
+            response = await client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=session
+            )
+        reply = response.choices[0].message.content.strip()
+        session.append({"role": "assistant", "content": reply})
+        logger.info(f"Received response from OpenAI API: {reply}")
+        return reply
+    except RateLimitError as e:
+        logger.error(f"Rate limit exceeded: {e}")
+        return "API rate limit reached. Please try again later."
+    except OpenAIError as e:
+        logger.error(f"OpenAI API Error: {e}")
+        return "Sorry, there was a problem with OpenAI. Please try again."
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return "An unexpected error occurred."
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
@@ -114,24 +142,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     logger.info(f"Received message from user: {user_message}")
 
     session = get_or_create_session(user_id)
-    session.append({"role": "user", "content": user_message})
-
-    try:
-        logger.info("Sending request to OpenAI API")
-        async with get_openai_client() as client:
-            response = await client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=session
-            )
-        reply = response.choices[0].message.content.strip()
-
-        session.append({"role": "assistant", "content": reply})
-
-        logger.info(f"Received response from OpenAI API: {reply}")
-        await send_message_with_retry(update, reply)
-    except Exception as e:
-        logger.error(f"Error while communicating with OpenAI API: {e}")
-        await send_message_with_retry(update, "Sorry, there was an error processing your request.")
+    reply = await process_message(user_message, session)
+    await send_message_with_retry(update, reply)
 
 async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
@@ -144,24 +156,8 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Received message from user: {user_message}")
 
     session = get_or_create_session(user_id)
-    session.append({"role": "user", "content": user_message})
-
-    try:
-        logger.info("Sending request to OpenAI API")
-        async with get_openai_client() as client:
-            response = await client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=session
-            )
-        reply = response.choices[0].message.content.strip()
-
-        session.append({"role": "assistant", "content": reply})
-
-        logger.info(f"Received response from OpenAI API: {reply}")
-        await send_message_with_retry(update, reply)
-    except Exception as e:
-        logger.error(f"Error while communicating with OpenAI API: {e}")
-        await send_message_with_retry(update, "Sorry, there was an error processing your request.")
+    reply = await process_message(user_message, session)
+    await send_message_with_retry(update, reply)
 
 async def reset_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
