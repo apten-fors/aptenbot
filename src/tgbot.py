@@ -207,7 +207,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("reset", reset_session))
 
     # Register message handlers
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & filters.Reply, handle_reply))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & filters.REPLY, handle_reply))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_message))
 
     logger.info("Starting the bot application")
