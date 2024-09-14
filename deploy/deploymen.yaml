@@ -1,29 +1,29 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: tgbot
+  name: aptenbot
   labels:
-    app: tgbot
+    app: aptenbot
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: tgbot
+      app: aptenbot
   template:
     metadata:
       labels:
-        app: tgbot
+        app: aptenbot
     spec:
       containers:
-      - name: tgbot
-        image: your-docker-registry/tgbot:latest
+      - name: aptenbot
+        image: registry.darmstadt-1.cloud.gcore.dev/59508-197526-120-infra/aptenbot:0.0.1
         env:
         - name: OPENAI_API_KEY
           valueFrom:
             secretKeyRef:
               name: tgbot-secrets
               key: openai-api-key
-        - name: TELEGRAM_BOT_TOKEN
+        - name: TG_BOT_TOKEN
           valueFrom:
             secretKeyRef:
               name: tgbot-secrets
@@ -35,3 +35,5 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
+      imagePullSecrets:
+        - name: gcore-registry-secret
