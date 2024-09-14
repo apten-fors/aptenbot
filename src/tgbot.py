@@ -25,7 +25,6 @@ logger.addHandler(logHandler)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
-# CHANNEL_ID = os.getenv("CHANNEL_ID")  # Add your channel ID here
 CHANNEL_ID = "@korobo4ka_xoroni"
 
 openai.api_key = OPENAI_API_KEY

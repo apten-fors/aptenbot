@@ -1,0 +1,37 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: tgbot
+  labels:
+    app: tgbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tgbot
+  template:
+    metadata:
+      labels:
+        app: tgbot
+    spec:
+      containers:
+      - name: tgbot
+        image: your-docker-registry/tgbot:latest
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: tgbot-secrets
+              key: openai-api-key
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: tgbot-secrets
+              key: telegram-bot-token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
