@@ -1,6 +1,6 @@
 import os
+import logging
 import logging.config
-from pythonjsonlogger import jsonlogger
 import json
 import time
 import asyncio
@@ -11,6 +11,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.error import TelegramError
 from openai import AsyncOpenAI
+from pythonjsonlogger import jsonlogger
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -22,6 +23,7 @@ MAX_RETRIES = 3
 RETRY_DELAY = 1
 SESSION_EXPIRY = 3600  # 1 hour
 
+# Configure logging
 class UnicodeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, str):
@@ -104,7 +106,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
         return
 
-    if not await is_subscriber(user_id, context.bot):
+    if not await is_subscriber(user_id, update.get_bot()):
         await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
         return
 
@@ -163,14 +165,17 @@ async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def reset_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
+    logger.info(f"Resetting session for user: {user_id}")
 
     if user_id in sessions:
+        logger.info(f"User {user_id} has an active session. Resetting...")
         sessions[user_id] = {
             'messages': [{"role": "system", "content": "You are a helpful assistant."}],
             'last_activity': time.time()
         }
         await send_message_with_retry(update, "Session reset. Let's start fresh!")
     else:
+        logger.info(f"User {user_id} does not have an active session.")
         await send_message_with_retry(update, "You don't have an active session to reset.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -179,10 +184,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # Register command handlers first
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ask", ask))
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_message))
     app.add_handler(CommandHandler("reset", reset_session))
+
+    # Register message handler last
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_message))
 
     logger.info("Starting the bot application")
     app.run_polling()

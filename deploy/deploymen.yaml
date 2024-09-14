@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: aptenbot
-        image: registry.darmstadt-1.cloud.gcore.dev/59508-197526-120-infra/aptenbot:0.0.1
+        image: registry.darmstadt-1.cloud.gcore.dev/59508-197526-120-infra/aptenbot:v0.0.3
         env:
         - name: OPENAI_API_KEY
           valueFrom:
