@@ -145,11 +145,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     reply = await process_message(user_message, session)
     await send_message_with_retry(update, reply)
 
+async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.message.from_user.id
+    if not await is_subscriber(user_id, update.get_bot()):
+        await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+        return
+
+    if not update.message.reply_to_message:
+        await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
+        return
+
+    user_message = update.message.text
+    logger.info(f"Received reply from user: {user_message}")
+
+    session = get_or_create_session(user_id)
+    reply = await process_message(user_message, session)
+    await send_message_with_retry(update, reply)
+
 async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
 
     if not await is_subscriber(user_id, context.bot):
         await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+        return
+
+    if not context.args:
+        await send_message_with_retry(update, "Usage: /ask <your question>")
         return
 
     user_message = ' '.join(context.args)
@@ -185,7 +206,8 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("ask", ask))
     app.add_handler(CommandHandler("reset", reset_session))
 
-    # Register message handler last
+    # Register message handlers
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & filters.Reply, handle_reply))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_message))
 
     logger.info("Starting the bot application")
