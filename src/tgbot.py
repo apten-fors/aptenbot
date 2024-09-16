@@ -13,6 +13,7 @@ from telegram.error import TelegramError, BadRequest
 from openai import AsyncOpenAI
 from openai import OpenAIError, RateLimitError
 from pythonjsonlogger import jsonlogger
+from logging_config import logger
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -35,30 +36,6 @@ class UnicodeJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, json_ensure_ascii=False, json_encoder=UnicodeEncoder, **kwargs)
 
-logging.config.dictConfig({
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'unicode_json': {
-            '()': UnicodeJsonFormatter,
-            'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'unicode_json',
-        },
-    },
-    'loggers': {
-        '': {
-            'handlers': ['console'],
-            'level': 'INFO',
-        },
-    },
-})
-
-logger = logging.getLogger(__name__)
 
 # Storage for user sessions
 sessions: Dict[int, Dict[str, Union[List[Dict[str, str]], float]]] = {}
@@ -149,11 +126,16 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user_id = update.message.from_user.id
     chat_type = update.message.chat.type
 
+    # Check if the reply is to a bot's message
+    if update.message.reply_to_message.from_user.id != context.bot.id:
+        return
+
     if chat_type in ['group', 'supergroup']:
         if not await is_subscriber(user_id, update.get_bot()):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
 
+    # Something weird is going on here
     if not update.message.reply_to_message:
         await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
         return
