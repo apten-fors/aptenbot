@@ -131,13 +131,13 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
 
+    # Something weird is going on here
     if not update.message.reply_to_message:
         await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
         return
 
     # Check if the reply is to a bot's message
     if update.message.reply_to_message.from_user.id != context.bot.id:
-        await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
         return
 
     user_message = update.message.text
