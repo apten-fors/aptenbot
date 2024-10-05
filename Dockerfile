@@ -5,11 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY main.py .
-COPY config.py .
-COPY utils/ .
-COPY managers/ .
-COPY clients/ .
-COPY handlers/ .
+COPY utils/ /app/utils/
+COPY managers/ /app/managers/
+COPY clients/ /app/clients/
+COPY handlers/ /app/handlers/
+COPY main.py /app/main.py
+COPY config.py /app/config.py
 
 CMD ["python", "main.py"]
