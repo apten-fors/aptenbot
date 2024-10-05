@@ -5,6 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY src/ .
+COPY main.py .
+COPY config.py .
+COPY utils/ .
+COPY managers/ .
+COPY clients/ .
+COPY handlers/ .
 
-CMD ["python", "tgbot.py"]
+CMD ["python", "main.py"]
