@@ -1,6 +1,6 @@
+import json
 import logging
 import logging.config
-import json
 from pythonjsonlogger import jsonlogger
 
 class UnicodeEncoder(json.JSONEncoder):
@@ -13,7 +13,8 @@ class UnicodeJsonFormatter(jsonlogger.JsonFormatter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, json_ensure_ascii=False, json_encoder=UnicodeEncoder, **kwargs)
 
-logging.config.dictConfig({
+def configure_logging():
+    logging.config.dictConfig({
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
@@ -33,7 +34,10 @@ logging.config.dictConfig({
             'handlers': ['console'],
             'level': 'INFO',
         },
-    },
-})
+        },
+    })
+    logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
+    return logger
+
+logger = configure_logging()
