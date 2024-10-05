@@ -19,6 +19,7 @@ from logging_config import logger
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@korobo4ka_xoroni")
+CHANNEL_USER_ID = os.getenv("CHANNEL_USER_ID", "777000")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 MAX_RETRIES = 3
@@ -71,7 +72,13 @@ async def send_message_with_retry(update: Update, text: str) -> None:
             await asyncio.sleep(RETRY_DELAY)
 
 async def is_subscriber(user_id: int, bot) -> bool:
+    logger.info(f"Checking subscription status for user: {user_id}")
     try:
+        # Check if the user is posting on behalf of the channel
+        if user_id == int(CHANNEL_USER_ID):  # This is the user ID for messages sent by channels
+            logger.info("Message sent on behalf of a channel, considering as subscribed")
+            return True
+
         member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
         logger.info(f"Member status: {member.status}")
         return member.status in ['member', 'administrator', 'creator']
@@ -131,7 +138,7 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     if chat_type in ['group', 'supergroup']:
-        if not await is_subscriber(user_id, update.get_bot()):
+        if not await is_subscriber(user_id, context.bot):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
 
