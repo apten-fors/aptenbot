@@ -46,7 +46,7 @@ export CHANNEL_ID='@your_channel_id'
 Install the required Python libraries:
 
 ```bash
-pip install python-telegram-bot openai python-json-logger
+pip install -r requirements.txt
 ```
 
 ### 3. Run the Bot
@@ -54,7 +54,7 @@ pip install python-telegram-bot openai python-json-logger
 Simply run the bot:
 
 ```bash
-python src/tgbot.py
+python main.py
 ```
 
 The bot will begin polling for messages on Telegram. You can interact with the bot via private messages or in group chats using specific commands.
