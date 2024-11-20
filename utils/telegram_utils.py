@@ -5,7 +5,11 @@ from utils.logging_config import logger
 from config import MAX_RETRIES, RETRY_DELAY
 
 def escape_markdown_v2(text: str) -> str:
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    # First, escape backslashes
+    text = text.replace('\\', '\\\\')
+
+    # Then escape all special characters
+    escape_chars = '_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
 
 async def send_message_with_retry(update: Update, text: str) -> None:
