@@ -4,10 +4,15 @@ from telegram.error import TelegramError, BadRequest
 from utils.logging_config import logger
 from config import MAX_RETRIES, RETRY_DELAY
 
+def escape_markdown_v2(text: str) -> str:
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
+
 async def send_message_with_retry(update: Update, text: str) -> None:
+    escaped_text = escape_markdown_v2(text)
     for attempt in range(MAX_RETRIES):
         try:
-            await update.message.reply_text(text, parse_mode='MarkdownV2')
+            await update.message.reply_text(escaped_text, parse_mode='MarkdownV2')
             return
         except TelegramError as e:
             if isinstance(e, BadRequest):
