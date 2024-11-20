@@ -7,20 +7,18 @@ from config import MAX_RETRIES, RETRY_DELAY
 
 def escape_markdown_v2(text: str) -> str:
     # Define the list of special characters to escape in regular text
-    regular_escape_chars = r'_*\[\]()~`>#+-=|{}.!'
-    # Define the list of characters to escape in code (inline and block)
-    code_escape_chars = r'\\`'
+    regular_escape_chars = '_*[]()~`>#+-=|{}.!'
 
     # Function to escape special characters in regular text
     def escape_regular_text(s):
-        s = re.sub(r'\\', r'\\\\', s)  # Escape backslashes
+        s = s.replace('\\', '\\\\')  # Escape backslashes
         pattern = f'([{re.escape(regular_escape_chars)}])'
         return re.sub(pattern, r'\\\1', s)
 
-    # Function to escape special characters in code
+    # Function to escape backslashes and backticks in code
     def escape_code(s):
-        pattern = f'([{re.escape(code_escape_chars)}])'
-        return re.sub(pattern, r'\\\1', s)
+        s = s.replace('\\', '\\\\').replace('`', '\\`')
+        return s
 
     # Split the text to handle code blocks
     parts = re.split(r'(```.*?```)', text, flags=re.DOTALL)
