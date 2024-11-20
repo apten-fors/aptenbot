@@ -7,7 +7,7 @@ from config import MAX_RETRIES, RETRY_DELAY
 async def send_message_with_retry(update: Update, text: str) -> None:
     for attempt in range(MAX_RETRIES):
         try:
-            await update.message.reply_text(text)
+            await update.message.reply_text(text, parse_mode='MarkdownV2')
             return
         except TelegramError as e:
             if isinstance(e, BadRequest):
