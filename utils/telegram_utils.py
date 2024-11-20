@@ -5,24 +5,33 @@ from utils.logging_config import logger
 from config import MAX_RETRIES, RETRY_DELAY
 
 def escape_markdown_v2(text: str) -> str:
-    # Split the text into parts: regular text and code blocks
+    # First handle triple backticks (code blocks)
     parts = text.split("```")
 
-    # Process each part differently
     for i in range(len(parts)):
         if i % 2 == 0:  # Regular text parts
-            # First, escape backslashes
-            parts[i] = parts[i].replace('\\', '\\\\')
-            # Escape special characters except markdown formatting characters
-            escape_chars = '[]()~`>#+=|{}.!-'
-            parts[i] = ''.join(f'\\{char}' if char in escape_chars else char
-                             for char in parts[i])
-        else:  # Code block parts
-            # For code blocks, escape only the minimal required characters
+            # Handle single backticks in regular text
+            subparts = parts[i].split("`")
+            for j in range(len(subparts)):
+                if j % 2 == 0:  # Non-code text
+                    # Escape backslashes first
+                    subparts[j] = subparts[j].replace('\\', '\\\\')
+                    # Escape special characters except markdown formatting
+                    escape_chars = '[]()~`>#+=|{}.!-'
+                    subparts[j] = ''.join(f'\\{char}' if char in escape_chars else char 
+                                        for char in subparts[j])
+                else:  # Inline code
+                    # For inline code, escape only minimal characters
+                    subparts[j] = subparts[j].replace('\\', '\\\\')
+                    subparts[j] = subparts[j].replace('`', '\\`')
+
+            parts[i] = '`'.join(subparts)
+        else:  # Code blocks
+            # For code blocks, escape only minimal characters
             parts[i] = parts[i].replace('\\', '\\\\')
             parts[i] = parts[i].replace('`', '\\`')
 
-    # Rejoin the parts with code block markers
+    # Rejoin everything
     return '```'.join(parts)
 
 async def send_message_with_retry(update: Update, text: str) -> None:
