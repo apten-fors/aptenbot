@@ -9,7 +9,7 @@ def escape_markdown_v2(text: str) -> str:
     text = text.replace('\\', '\\\\')
 
     # Escape special characters except markdown formatting characters
-    escape_chars = '[]()~`>#+=|{}.!'
+    escape_chars = '[]()~`>#+=|{}.!-'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
 
 async def send_message_with_retry(update: Update, text: str) -> None:
