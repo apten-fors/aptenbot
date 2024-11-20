@@ -53,3 +53,21 @@ class MessageHandler:
         session = self.session_manager.get_or_create_session(user_id)
         reply = await self.openai_client.process_message(session, user_message)
         await send_message_with_retry(update, reply)
+
+    async def handle_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        # Log the full update object for debugging
+        logger.info(f"Received message with image. Full update: {update.to_dict()}")
+
+        user_id = update.message.from_user.id
+        chat_type = update.message.chat.type
+
+        # Apply the same permission checks as text messages
+        if chat_type in ['group', 'supergroup']:
+            await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
+            return
+
+        if not await self.subscription_manager.is_subscriber(user_id, update.get_bot()):
+            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+            return
+
+        await send_message_with_retry(update, "I see you've sent an image! Image processing is currently under development. Stay tuned for updates!")
