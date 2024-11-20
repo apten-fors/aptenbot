@@ -5,6 +5,7 @@ from telegram.error import TelegramError, BadRequest
 from utils.logging_config import logger
 from config import MAX_RETRIES, RETRY_DELAY
 
+
 def escape_markdown_v2(text: str) -> str:
     # Define the list of special characters to escape in regular text
     regular_escape_chars = '_*[]()~`>#+-=|{}.!'
@@ -15,29 +16,33 @@ def escape_markdown_v2(text: str) -> str:
         pattern = f'([{re.escape(regular_escape_chars)}])'
         return re.sub(pattern, r'\\\1', s)
 
-    # Function to escape backslashes and backticks in code
+    # Function to escape special characters in code blocks and inline code
     def escape_code(s):
-        s = s.replace('\\', '\\\\').replace('`', '\\`')
+        # Escape backslashes, backticks, and '#' characters
+        s = s.replace('\\', '\\\\').replace('`', '\\`').replace('#', '\\#')
         return s
 
-    # Split the text to handle code blocks
+    # Split the text to handle code blocks (including language identifiers)
     parts = re.split(r'(```.*?```)', text, flags=re.DOTALL)
     for i in range(len(parts)):
-        if parts[i].startswith('```') and parts[i].endswith('```'):
+        part = parts[i]
+        if part.startswith('```') and part.endswith('```'):
             # It's a code block
-            parts[i] = escape_code(parts[i])
+            parts[i] = escape_code(part)
         else:
             # Handle inline code within regular text
-            subparts = re.split(r'(`[^`]*?`)', parts[i])
+            subparts = re.split(r'(`[^`]*?`)', part)
             for j in range(len(subparts)):
-                if subparts[j].startswith('`') and subparts[j].endswith('`'):
+                subpart = subparts[j]
+                if subpart.startswith('`') and subpart.endswith('`'):
                     # It's inline code
-                    subparts[j] = escape_code(subparts[j])
+                    subparts[j] = escape_code(subpart)
                 else:
                     # Regular text
-                    subparts[j] = escape_regular_text(subparts[j])
+                    subparts[j] = escape_regular_text(subpart)
             parts[i] = ''.join(subparts)
     return ''.join(parts)
+
 
 
 async def send_message_with_retry(update: Update, text: str) -> None:
