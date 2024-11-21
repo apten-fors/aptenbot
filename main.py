@@ -19,6 +19,7 @@ class BotApp:
     def register_handlers(self):
         self.application.add_handler(TelegramCommandHandler("start", self.command_handler.start))
         self.application.add_handler(TelegramCommandHandler("ask", self.command_handler.ask))
+        self.application.add_handler(TelegramCommandHandler("img", self.command_handler.img))
         self.application.add_handler(TelegramCommandHandler("reset", self.command_handler.reset_session))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.message_handler.handle_reply))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.message_handler.handle_message))
