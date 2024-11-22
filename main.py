@@ -4,6 +4,7 @@ from utils.logging_config import logger
 from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
+from clients.flux_client import FluxClient
 from handlers.message_handler import MessageHandler
 from handlers.command_handler import CommandHandler
 
@@ -12,6 +13,7 @@ class BotApp:
         self.session_manager = SessionManager()
         self.subscription_manager = SubscriptionManager()
         self.openai_client = OpenAIClient()
+        self.flux_client = FluxClient()
         self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, self.openai_client)
         self.command_handler = CommandHandler(self.session_manager, self.subscription_manager, self.openai_client, self.flux_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
