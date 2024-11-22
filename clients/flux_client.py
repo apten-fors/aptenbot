@@ -1,5 +1,4 @@
 import aiohttp
-from urllib.parse import urljoin
 from config import BFL_API_KEY, FLUX_MODEL
 from utils.logging_config import logger
 
@@ -10,7 +9,7 @@ class FluxClient:
         self.url = "https://api.bfl.ml/v1"
 
     async def generate_image(self, prompt: str) -> str:
-        endpoint = urljoin(self.url, self.model)
+        endpoint = f"{self.url}/{self.model}"
         payload = {
             "prompt": prompt,
             "width": 1024,
@@ -30,7 +29,7 @@ class FluxClient:
                     response.raise_for_status()
                     query_params = await response.json()
                 logger.info(f"Get task id: {query_params}")
-                get_url = urljoin(self.url, "get_result")
+                get_url = f"{self.url}/get_result"
                 async with session.get(get_url, params=query_params) as get_response:
                     get_response.raise_for_status()
                     result = await get_response.json()
