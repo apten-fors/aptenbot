@@ -1,4 +1,5 @@
 import aiohttp
+import asyncio
 from config import BFL_API_KEY, FLUX_MODEL
 from utils.logging_config import logger
 
@@ -25,16 +26,25 @@ class FluxClient:
 
         async with aiohttp.ClientSession() as session:
             try:
+                # Initial request to start generation
                 async with session.post(endpoint, json=payload, headers=headers) as response:
                     response.raise_for_status()
                     query_params = await response.json()
                 logger.info(f"Get task id: {query_params}")
+
+                # Poll until ready
                 get_url = f"{self.url}/get_result"
-                async with session.get(get_url, params=query_params) as get_response:
-                    get_response.raise_for_status()
-                    result = await get_response.json()
-                    logger.info(f"Get result with image: {result}")
-                    return result["result"]["sample"]
+                while True:
+                    async with session.get(get_url, params=query_params) as get_response:
+                        get_response.raise_for_status()
+                        result = await get_response.json()
+                        logger.info(f"Get result with image: {result}")
+
+                        if result["status"] == "Ready" and result["result"]:
+                            return result["result"]["sample"]
+
+                        # Add delay between polls to avoid hammering the server
+                        await asyncio.sleep(1)
 
             except aiohttp.ClientError as e:
                 logger.error(f"HTTP request failed: {e}")
