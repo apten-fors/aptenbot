@@ -13,7 +13,7 @@ class BotApp:
         self.subscription_manager = SubscriptionManager()
         self.openai_client = OpenAIClient()
         self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, self.openai_client)
-        self.command_handler = CommandHandler(self.session_manager, self.subscription_manager, self.openai_client)
+        self.command_handler = CommandHandler(self.session_manager, self.subscription_manager, self.openai_client, self.flux_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     def register_handlers(self):
