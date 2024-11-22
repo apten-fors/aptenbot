@@ -29,11 +29,12 @@ class FluxClient:
                 async with session.post(endpoint, json=payload, headers=headers) as response:
                     response.raise_for_status()
                     query_params = await response.json()
-
+                logger.info(f"Get task id: {query_params}")
                 get_url = urljoin(self.url, "get_result")
                 async with session.get(get_url, params=query_params) as get_response:
                     get_response.raise_for_status()
                     result = await get_response.json()
+                    logger.info(f"Get result with image: {result}")
                     return result["result"]["sample"]
 
             except aiohttp.ClientError as e:
