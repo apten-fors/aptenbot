@@ -86,7 +86,7 @@ class CommandHandler:
             return
 
         instagram_url = match.group(0)
-        ok, path = await self.instaloader_client.download_video(instagram_url)
+        ok, path = self.instaloader_client.download_video(instagram_url)
         if not ok:
             await send_message_with_retry(update, f"Something went wrong: {path}")
             return
