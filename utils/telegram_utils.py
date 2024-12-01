@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.error import TelegramError, BadRequest
 from utils.logging_config import logger
 from config import MAX_RETRIES, RETRY_DELAY
+from pathlib import Path
 
 def escape_markdown_v2(text: str) -> str:
     # First handle triple backticks (code blocks)
@@ -53,6 +54,24 @@ async def send_pic_with_retry(update: Update, pic: str) -> None:
     for attempt in range(MAX_RETRIES):
         try:
             await update.message.reply_photo(pic)
+            return
+        except TelegramError as e:
+            if isinstance(e, BadRequest):
+                logger.error(f"Bad request error: {e}")
+                return
+            if attempt == MAX_RETRIES - 1:
+                logger.error(f"Failed to send message after {MAX_RETRIES} attempts: {e}")
+                raise
+            await asyncio.sleep(RETRY_DELAY)
+
+async def send_video_with_retry(update: Update, video: str) -> None:
+    for attempt in range(MAX_RETRIES):
+        try:
+            path = Path(video)
+            if not path.exists():
+                logger.error(f"File not found: {video}")
+                return
+            await update.message.reply_video(path)
             return
         except TelegramError as e:
             if isinstance(e, BadRequest):
