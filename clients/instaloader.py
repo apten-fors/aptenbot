@@ -40,5 +40,5 @@ class InstaloaderClient:
                 return False, "no file exists"
 
         except Exception as e:
-            logger.error(f'Something went wrong: {e}')
-            raise
+            logger.error(f'Something went wrong while downloading video: {e}')
+            return False, f"Failed to download video: {str(e)}"
