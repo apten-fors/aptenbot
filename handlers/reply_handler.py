@@ -15,6 +15,7 @@ class MessageHandler:
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
+        logger.info(f"Debug: {update.to_dict()}")
 
         if chat_type in ['group', 'supergroup']:
             await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
@@ -34,6 +35,7 @@ class MessageHandler:
     async def handle_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
+        logger.info(f"Debug: {update.to_dict()}")
 
         # Check if the reply is to a bot's message
         if update.message.reply_to_message.from_user.id != context.bot.id:
