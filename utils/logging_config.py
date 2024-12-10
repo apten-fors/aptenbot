@@ -20,7 +20,7 @@ def configure_logging():
     'formatters': {
         'unicode_json': {
             '()': UnicodeJsonFormatter,
-            'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
+            'format': '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
         },
     },
     'handlers': {
