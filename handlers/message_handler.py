@@ -35,7 +35,7 @@ class MessageHandler:
     async def handle_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
-        logger.info(f"Debug: {update.to_dict()}")
+        logger.info(f"Debug: {chat_type}")
 
         if update.message.reply_to_message.from_user.id != context.bot.id:
             return
@@ -62,6 +62,7 @@ class MessageHandler:
 
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
+        logger.info(f"Debug: {chat_type}")
 
         # Apply the same permission checks as text messages
         if chat_type in ['group', 'supergroup']:
