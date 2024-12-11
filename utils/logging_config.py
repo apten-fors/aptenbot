@@ -4,6 +4,15 @@ import logging.config
 from pythonjsonlogger import jsonlogger
 from config import LOG_LEVEL
 
+
+VALID_LOG_LEVELS = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL
+}
+
 class UnicodeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, str):
@@ -15,6 +24,9 @@ class UnicodeJsonFormatter(jsonlogger.JsonFormatter):
         super().__init__(*args, json_ensure_ascii=False, json_encoder=UnicodeEncoder, **kwargs)
 
 def configure_logging():
+    if LOG_LEVEL not in VALID_LOG_LEVELS:
+        raise ValueError(f"Invalid log level: {LOG_LEVEL}. Must be one of {', '.join(VALID_LOG_LEVELS.keys())}")
+
     logging.config.dictConfig({
     'version': 1,
     'disable_existing_loggers': False,
@@ -34,8 +46,28 @@ def configure_logging():
         '': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
+            },
+            'telegram': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'telegram.ext': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'httpcore': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'httpcore.http11': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            }
         },
-    },
     })
     log = logging.getLogger(__name__)
 
