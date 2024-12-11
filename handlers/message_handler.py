@@ -16,6 +16,8 @@ class MessageHandler:
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
 
+        logger.debug(f"Chat type: {chat_type}")
+
         if chat_type in ['group', 'supergroup']:
             await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
             return
@@ -25,31 +27,42 @@ class MessageHandler:
             return
 
         user_message = update.message.text
+        logger.debug(f"Full message: {update.to_dict()}")
         logger.info(f"Received message from user: {user_message}")
 
         session = self.session_manager.get_or_create_session(user_id)
         reply = await self.openai_client.process_message(session, user_message)
         await send_message_with_retry(update, reply)
 
-    async def handle_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def handle_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.debug(f"Full message: {update.to_dict()}")
+
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
 
-        if update.message.reply_to_message.from_user.id != context.bot.id:
-            return
-
+        # Apply the same permission checks as text messages
+        logger.debug(f"Chat type: {chat_type}")
         if chat_type in ['group', 'supergroup']:
-            if not await self.subscription_manager.is_subscriber(user_id, context.bot):
-                await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
-                return
-
-        if not update.message.reply_to_message:
-            await send_message_with_retry(update, "Please reply to a bot's message to continue the conversation.")
+            await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
             return
 
-        user_message = update.message.text
-        logger.info(f"Received reply from user: {user_message}")
+        # Extract the caption without the command
+        caption = update.message.caption.replace('/ask', '').strip()
+        logger.info(f"Received message from user: {caption}")
+        if not caption:
+            await send_message_with_retry(update, "Usage: /ask <your question>")
+            return
+
+        # Get the photo
+        photo = update.message.photo[-1]  # Get the highest quality photo
+        logger.info(f"Received photo from user: {photo}")
+
+        file = await context.bot.get_file(photo.file_id)
+        file_url = file.file_path  # This is the direct download URL for the file
+
+        logger.info(f"File URL: {file_url}")
 
         session = self.session_manager.get_or_create_session(user_id)
-        reply = await self.openai_client.process_message(session, user_message)
+        reply = await self.openai_client.process_message_with_image(session, caption, file_url)
+
         await send_message_with_retry(update, reply)

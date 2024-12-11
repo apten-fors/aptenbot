@@ -7,6 +7,7 @@ CHANNEL_USER_ID = os.getenv("CHANNEL_USER_ID", "777000")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 FLUX_MODEL = os.getenv("FLUX_MODEL", "flux-pro-1.1")
 BFL_API_KEY = os.getenv("BFL_API_KEY")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 MAX_RETRIES = 3
 RETRY_DELAY = 1
