@@ -100,3 +100,25 @@ class CommandHandler:
             return
 
         await send_video_with_retry(update, path)
+
+    async def ask_with_image(self, update, context):
+        user_id = update.message.from_user.id
+
+        if not await self.subscription_manager.is_subscriber(user_id, context.bot):
+            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+            return
+
+        if not context.args:
+            await send_message_with_retry(update, "Usage: /ask <your question>")
+            return
+
+        # Extract the caption without the command
+        caption = update.message.caption.replace('/ask', '').strip()
+        logger.info(f"Received message from user: {caption}")
+        # Get the photo
+        photo = update.message.photo[-1]  # Get the highest quality photo
+        logger.info(f"Received photo from user: {photo}")
+
+        # Process both the image and caption here
+        # You might want to combine this logic with your existing ask method
+        await send_message_with_retry(update, "I see you've sent an image! Image processing is currently under development. Stay tuned for updates!")
