@@ -18,7 +18,8 @@ class CommandHandler:
         self.flux_client = flux_client
         self.instaloader_client = instaloader_client
 
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    @staticmethod
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await send_message_with_retry(update, f'Hi, I am an useful ChatGPT bot. I use {OPENAI_MODEL} from OpenAI. \
                                       Use /ask followed by your question to get a response in groups. \
                                       For private chats, just send your question directly. \

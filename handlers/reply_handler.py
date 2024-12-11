@@ -6,7 +6,7 @@ from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
 
-class MessageHandler:
+class ReplyHandler:
     def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, openai_client: OpenAIClient):
         self.session_manager = session_manager
         self.subscription_manager = subscription_manager

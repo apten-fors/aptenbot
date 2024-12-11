@@ -37,8 +37,8 @@ def configure_logging():
         },
     },
     })
-    logger = logging.getLogger(__name__)
+    log = logging.getLogger(__name__)
 
-    return logger
+    return log
 
 logger = configure_logging()
