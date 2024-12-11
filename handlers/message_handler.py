@@ -16,6 +16,8 @@ class MessageHandler:
         user_id = update.message.from_user.id
         chat_type = update.message.chat.type
 
+        logger.debug(f"Chat type: {chat_type}")
+
         if chat_type in ['group', 'supergroup']:
             await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
             return
@@ -39,12 +41,28 @@ class MessageHandler:
         chat_type = update.message.chat.type
 
         # Apply the same permission checks as text messages
+        logger.debug(f"Chat type: {chat_type}")
         if chat_type in ['group', 'supergroup']:
             await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
             return
 
-        if not await self.subscription_manager.is_subscriber(user_id, update.get_bot()):
-            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+        # Extract the caption without the command
+        caption = update.message.caption.replace('/ask', '').strip()
+        logger.info(f"Received message from user: {caption}")
+        if not caption:
+            await send_message_with_retry(update, "Usage: /ask <your question>")
             return
 
-        await send_message_with_retry(update, "I see you've sent an image! Image processing is currently under development. Stay tuned for updates!")
+        # Get the photo
+        photo = update.message.photo[-1]  # Get the highest quality photo
+        logger.info(f"Received photo from user: {photo}")
+
+        file = await context.bot.get_file(photo.file_id)
+        file_url = file.file_path  # This is the direct download URL for the file
+
+        logger.info(f"File URL: {file_url}")
+
+        session = self.session_manager.get_or_create_session(user_id)
+        reply = await self.openai_client.process_message_with_image(session, caption, file_url)
+
+        await send_message_with_retry(update, reply)

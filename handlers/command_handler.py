@@ -108,17 +108,23 @@ class CommandHandler:
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
 
-        if not context.args:
-            await send_message_with_retry(update, "Usage: /ask <your question>")
-            return
-
         # Extract the caption without the command
         caption = update.message.caption.replace('/ask', '').strip()
         logger.info(f"Received message from user: {caption}")
+        if not caption:
+            await send_message_with_retry(update, "Usage: /ask <your question>")
+            return
+
         # Get the photo
         photo = update.message.photo[-1]  # Get the highest quality photo
         logger.info(f"Received photo from user: {photo}")
 
-        # Process both the image and caption here
-        # You might want to combine this logic with your existing ask method
-        await send_message_with_retry(update, "I see you've sent an image! Image processing is currently under development. Stay tuned for updates!")
+        file = await context.bot.get_file(photo.file_id)
+        file_url = file.file_path  # This is the direct download URL for the file
+
+        logger.info(f"File URL: {file_url}")
+
+        session = self.session_manager.get_or_create_session(user_id)
+        reply = await self.openai_client.process_message_with_image(session, caption, file_url)
+
+        await send_message_with_retry(update, reply)
