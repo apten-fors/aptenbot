@@ -2,6 +2,7 @@ import json
 import logging
 import logging.config
 from pythonjsonlogger import jsonlogger
+from config import LOG_LEVEL
 
 class UnicodeEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -32,9 +33,9 @@ def configure_logging():
     'loggers': {
         '': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
         },
-        },
+    },
     })
     logger = logging.getLogger(__name__)
 

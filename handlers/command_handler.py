@@ -1,3 +1,4 @@
+import re
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logging_config import logger
@@ -7,7 +8,7 @@ from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
 from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
-import re
+from config import OPENAI_MODEL
 
 class CommandHandler:
     def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, openai_client: OpenAIClient, flux_client: FluxClient, instaloader_client: InstaloaderClient):
@@ -18,7 +19,12 @@ class CommandHandler:
         self.instaloader_client = instaloader_client
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await send_message_with_retry(update, 'Hi, I am a bot that uses ChatGPT. Use /ask followed by your question to get a response in groups. For private chats, just send your question directly.')
+        await send_message_with_retry(update, f'Hi, I am an useful ChatGPT bot. I use {OPENAI_MODEL} from OpenAI. \
+                                      Use /ask followed by your question to get a response in groups. \
+                                      For private chats, just send your question directly. \
+                                      When you reply to bot it will initiate a new session with storing context. \
+                                      Use /reset to reset the session or session will expire after 1 hour. \
+                                      Use /insta to download instagram video.')
 
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
@@ -32,6 +38,7 @@ class CommandHandler:
             return
 
         user_message = ' '.join(context.args)
+        logger.debug(f'Full message: {update.to_dict()}')
         logger.info(f"Received message from user: {user_message}")
 
         session = self.session_manager.get_or_create_session(user_id)

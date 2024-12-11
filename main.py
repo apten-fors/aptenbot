@@ -8,6 +8,7 @@ from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
 from handlers.message_handler import MessageHandler
 from handlers.command_handler import CommandHandler
+from handlers.reply_handler import ReplyHandler
 
 class BotApp:
     def __init__(self):
@@ -22,17 +23,18 @@ class BotApp:
                                               self.openai_client,
                                               self.flux_client,
                                               self.instaloader_client)
+        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager, self.openai_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     def register_handlers(self):
-        self.application.add_handler(TelegramCommandHandler("start", self.command_handler.start))
+        self.application.add_handler(TelegramCommandHandler(["start", "help"], self.command_handler.start))
         self.application.add_handler(TelegramCommandHandler("ask", self.command_handler.ask))
         self.application.add_handler(TelegramCommandHandler("img", self.command_handler.img))
         self.application.add_handler(TelegramCommandHandler("insta", self.command_handler.insta))
         self.application.add_handler(TelegramCommandHandler("reset", self.command_handler.reset_session))
-        self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.message_handler.handle_reply))
+        self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.message_handler.handle_message))
-        self.application.add_handler(TelegramMessageHandler(filters.PHOTO, self.message_handler.handle_image))
+        self.application.add_handler(TelegramMessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, self.message_handler.handle_image))
 
     def run(self):
         self.register_handlers()
