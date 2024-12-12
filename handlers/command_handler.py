@@ -126,13 +126,10 @@ class CommandHandler:
 
         # Check if message is part of a media group
         if update.message.media_group_id:
-            # Get all messages from the media group
-            media_group = await context.bot.get_media_group(
-                update.message.chat.id,
-                update.message.message_id
-            )
+            # Get all files from the media group
+            media_group_files = await update.message.get_media_group()
             # Collect URLs for all photos in the group
-            for message in media_group:
+            for message in media_group_files:
                 if message.photo:
                     file = await context.bot.get_file(message.photo[-1].file_id)
                     file_urls.append(file.file_path)
