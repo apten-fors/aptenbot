@@ -106,8 +106,11 @@ class CommandHandler:
         await send_video_with_retry(update, path)
 
     async def ask_with_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        user_id = update.message.from_user.id
+        # Early return if no media_group_id and no /ask command
+        if not update.message.media_group_id and not (update.message.caption and update.message.caption.startswith('/ask')):
+            return
 
+        user_id = update.message.from_user.id
         if not await self.subscription_manager.is_subscriber(user_id, context.bot):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
@@ -115,84 +118,65 @@ class CommandHandler:
         logger.debug(f"Media group ID: {update.message.media_group_id}")
         logger.debug(f"Message: {update.message.to_dict()}")
 
-        # Check if message is part of a media group
-        if update.message.media_group_id:
-            media_group_id = update.message.media_group_id
+        media_group_id = update.message.media_group_id
 
-            # Create lock for this media group if it doesn't exist
-            if media_group_id not in self.media_group_locks:
-                self.media_group_locks[media_group_id] = Lock()
+        # Create lock for this media group if it doesn't exist
+        if media_group_id not in self.media_group_locks:
+            self.media_group_locks[media_group_id] = Lock()
 
-            async with self.media_group_locks[media_group_id]:
-                if media_group_id not in self.media_groups:
-                    logger.debug(f"Creating new media group entry for {media_group_id}")
-                    # Only get caption from the first message with /ask command
-                    if update.message.caption and update.message.caption.startswith('/ask'):
-                        caption = update.message.caption.replace('/ask', '').strip()
-                        self.media_groups[media_group_id] = {
-                            'messages': [update.message],
-                            'caption': caption,
-                            'processed': False
-                        }
-                        logger.debug(f"Created new group with caption: {caption}")
-                    else:
-                        # This is a subsequent message without /ask
-                        return
+        async with self.media_group_locks[media_group_id]:
+            if media_group_id not in self.media_groups:
+                logger.debug(f"Creating new media group entry for {media_group_id}")
+                self.media_groups[media_group_id] = {
+                    'messages': [update.message],
+                    'caption': None,
+                    'processed': False
+                }
 
-                    # Schedule processing after a delay
-                    async def process_media_group():
-                        await asyncio.sleep(2)  # Wait for 2 seconds
-                        async with self.media_group_locks[media_group_id]:
-                            if media_group_id in self.media_groups and not self.media_groups[media_group_id]['processed']:
-                                group_data = self.media_groups[media_group_id]
-                                messages = group_data['messages']
-                                caption = group_data['caption']
+                # Schedule processing after a delay
+                async def process_media_group():
+                    await asyncio.sleep(2)  # Wait for 2 seconds
+                    async with self.media_group_locks[media_group_id]:
+                        if media_group_id in self.media_groups and not self.media_groups[media_group_id]['processed']:
+                            group_data = self.media_groups[media_group_id]
+                            messages = group_data['messages']
 
-                                logger.debug(f"Processing media group {media_group_id}. Messages count: {len(messages)}")
-                                logger.debug(f"Caption: {caption}")
+                            # Find message with /ask command
+                            caption = None
+                            for msg in messages:
+                                if msg.caption and msg.caption.startswith('/ask'):
+                                    caption = msg.caption.replace('/ask', '').strip()
+                                    break
 
-                                if not caption:
-                                    await send_message_with_retry(update, "Usage: /ask <your question>")
-                                    return
+                            logger.debug(f"Processing media group {media_group_id}. Messages count: {len(messages)}")
+                            logger.debug(f"Final caption: {caption}")
 
-                                # Process all photos
-                                file_urls = []
-                                for message in messages:
-                                    if message.photo:
-                                        file = await context.bot.get_file(message.photo[-1].file_id)
-                                        file_urls.append(file.file_path)
+                            if not caption:
+                                await send_message_with_retry(update, "Please add /ask command with your question")
+                                return
 
-                                if file_urls:
-                                    logger.info(f"Processing {len(file_urls)} images with caption: {caption}")
-                                    session = self.session_manager.get_or_create_session(user_id)
-                                    reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
-                                    await send_message_with_retry(update, reply)
+                            # Process all photos
+                            file_urls = []
+                            for message in messages:
+                                if message.photo:
+                                    file = await context.bot.get_file(message.photo[-1].file_id)
+                                    file_urls.append(file.file_path)
 
-                                # Cleanup
-                                del self.media_groups[media_group_id]
-                                del self.media_group_locks[media_group_id]
+                            if file_urls:
+                                logger.info(f"Processing {len(file_urls)} images with caption: {caption}")
+                                session = self.session_manager.get_or_create_session(user_id)
+                                reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
+                                await send_message_with_retry(update, reply)
 
-                    # Start the delayed processing task
-                    asyncio.create_task(process_media_group())
-                else:
-                    # Add to existing group if it exists and isn't processed
-                    if not self.media_groups[media_group_id]['processed']:
-                        logger.debug(f"Adding message to existing group {media_group_id}")
-                        self.media_groups[media_group_id]['messages'].append(update.message)
-            return
+                            # Cleanup
+                            self.media_groups[media_group_id]['processed'] = True
+                            del self.media_groups[media_group_id]
+                            del self.media_group_locks[media_group_id]
 
-        else:
-            # Single photo case
-            caption = (update.message.caption or '').replace('/ask', '').strip()
-            if not caption:
-                await send_message_with_retry(update, "Usage: /ask <your question>")
-                return
-
-            photo = update.message.photo[-1]
-            file = await context.bot.get_file(photo.file_id)
-            file_urls = [file.file_path]
-
-            logger.info(f"Processing single image with caption: {caption}")
-            session = self.session_manager.get_or_create_session(user_id)
-            reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
-            await send_message_with_retry(update, reply)
+                # Start the delayed processing task
+                asyncio.create_task(process_media_group())
+            else:
+                # Add to existing group if not processed
+                if not self.media_groups[media_group_id]['processed']:
+                    logger.debug(f"Adding message to existing group {media_group_id}")
+                    self.media_groups[media_group_id]['messages'].append(update.message)

@@ -35,11 +35,20 @@ class BotApp:
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.message_handler.handle_message))
         self.application.add_handler(TelegramMessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, self.message_handler.handle_image))
-        self.application.add_handler(TelegramMessageHandler(
-            filters.PHOTO & filters.CaptionRegex(r'^/ask') & filters.ChatType.GROUPS,
-            self.command_handler.ask_with_image,
-            block=False
-        ))
+        self.application.add_handler(
+            TelegramMessageHandler(
+                filters.PHOTO & filters.CaptionRegex(r'^/ask') & filters.ChatType.GROUPS,
+                self.command_handler.ask_with_image,
+                block=False
+            )
+        )
+        self.application.add_handler(
+            TelegramMessageHandler(
+                filters.PHOTO & filters.ChatType.GROUPS & filters.ALL,
+                self.command_handler.ask_with_image,
+                block=False
+            )
+        )
 
     def run(self):
         self.register_handlers()
