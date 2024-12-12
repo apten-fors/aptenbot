@@ -60,8 +60,7 @@ class OpenAIClient:
             async with self.get_client() as client:
                 response = await client.chat.completions.create(
                     model=self.model,
-                    messages=session,
-                    max_tokens=300
+                    messages=session
                 )
             reply = response.choices[0].message.content.strip()
             session.append({"role": "assistant", "content": reply})

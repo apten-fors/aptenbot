@@ -103,6 +103,7 @@ class CommandHandler:
 
     async def ask_with_image(self, update, context):
         user_id = update.message.from_user.id
+        logger.debug(f"Full message: {update.to_dict()}")
 
         if not await self.subscription_manager.is_subscriber(user_id, context.bot):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
@@ -118,6 +119,7 @@ class CommandHandler:
         # Get the photo
         photo = update.message.photo[-1]  # Get the highest quality photo
         logger.info(f"Received photo from user: {photo}")
+        logger.debug(f"Full photos: {update.message.photo}")
 
         file = await context.bot.get_file(photo.file_id)
         file_url = file.file_path  # This is the direct download URL for the file
