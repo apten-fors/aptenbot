@@ -1,15 +1,15 @@
 # AptenBot: AI-Powered Chatbot for Telegram
 
-AptenBot is an intelligent, AI-powered chatbot designed for Telegram users. It leverages OpenAI's ChatGPT model to provide conversational AI capabilities. AptenBot allows users to interact with it through simple text messages, getting quick responses, and engaging in meaningful conversations. Additionally, the bot checks if users are subscribed to a specified Telegram channel before allowing them to interact with the bot.
+AptenBot is an intelligent, AI-powered chatbot designed for Telegram users. It leverages OpenAI's ChatGPT model to provide conversational AI capabilities. AptenBot allows users to interact with it and engage in conversations. Additionally, the bot checks if users are subscribed to a specified Telegram channel before allowing them to interact with the bot.
 
-AptenBot is built using Python's `python-telegram-bot` library and integrates with OpenAI's API for natural language understanding. The bot operates in private chats and supports basic commands like starting, asking questions, and resetting conversations.
+AptenBot uses Python's `python-telegram-bot` library and integrates with OpenAI's API for natural language understanding. The bot operates in private chats and supports commands like starting, asking questions, and resetting conversations.
 
 ## Key Features
 
 - **AI-Powered Conversations**: Powered by OpenAI's GPT models, AptenBot provides intelligent and helpful responses to user queries.
 - **Telegram Group and Private Chat Support**: While AptenBot can operate in group chats, it encourages the use of private chats for direct interactions.
 - **Subscription Validation**: AptenBot ensures users are subscribed to a specified Telegram channel before they can access its features.
-- **Session Management**: User sessions are tracked, allowing AptenBot to maintain context and continuity in conversations. Sessions can be reset as needed.
+- **Session Management**: User sessions are tracked, allowing AptenBot to maintain context and conversation continuity. Sessions can be reset as needed.
 - **Retry Logic**: The bot includes built-in retry logic to handle Telegram API errors, ensuring robust communication.
 
 ## Prerequisites
@@ -51,27 +51,29 @@ pip install -r requirements.txt
 
 ### 3. Run the Bot
 
-Simply run the bot:
+Run the bot:
 
 ```bash
 python main.py
 ```
 
-The bot will begin polling for messages on Telegram. You can interact with the bot via private messages or in group chats using specific commands.
+The bot will begin polling for messages on Telegram. Using specific commands, you can interact with the bot via private messages or group chats.
 
 ### 4. Bot Commands
 
-- `/start`: Initiates a conversation with the bot. Informs the user how to interact with the bot.
-- `/ask [question]`: Allows the user to ask a question in group chats or private chats.
+- `/start or /help`: Initiates a conversation with the bot. Informs the user how to interact with the bot.
+- `/ask [question]`: The user can ask questions in groups or private chats.
 - `/reset`: Resets the current conversation session for the user, allowing a fresh start.
+- `/insta [Reels url]`: Download reels from Instagram by link
+- `/img [text prompt]`: Generate image from text via black forest API. (Not available in public)
 
 ### 5. Private Chat Interaction
 
-For private conversations, simply send a message directly to AptenBot. If you’re subscribed to the required channel, the bot will respond based on your message. If you're not subscribed, the bot will prompt you to join the channel.
+For private conversations, send a message directly to AptenBot. The bot will respond based on your message if you’re subscribed to the required channel. If you're not subscribed, the bot will prompt you to join the channel.
 
 ### 6. Group Chat Interaction
 
-In group chats, use the `/ask` command followed by your question. The bot does not process free-text messages in groups to reduce noise.
+Use the `/ask` command in group chats followed by your question. The bot does not process free-text messages in groups to reduce noise.
 
 ## Future Features
 
