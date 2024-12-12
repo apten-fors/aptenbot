@@ -1,3 +1,4 @@
+import re
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logging_config import logger
@@ -7,7 +8,9 @@ from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
 from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
-import re
+from config import OPENAI_MODEL
+import asyncio
+from asyncio import Lock
 
 class CommandHandler:
     def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, openai_client: OpenAIClient, flux_client: FluxClient, instaloader_client: InstaloaderClient):
@@ -16,9 +19,17 @@ class CommandHandler:
         self.openai_client = openai_client
         self.flux_client = flux_client
         self.instaloader_client = instaloader_client
+        self.media_groups = {}  # Store media groups at class level
+        self.media_group_locks = {}
 
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await send_message_with_retry(update, 'Hi, I am a bot that uses ChatGPT. Use /ask followed by your question to get a response in groups. For private chats, just send your question directly.')
+    @staticmethod
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        await send_message_with_retry(update, f'Hi, I am an useful ChatGPT bot. I use {OPENAI_MODEL} from OpenAI. \
+                                      Use /ask followed by your question to get a response in groups. \
+                                      For private chats, just send your question directly. \
+                                      When you reply to bot it will initiate a new session with storing context. \
+                                      Use /reset to reset the session or session will expire after 1 hour. \
+                                      Use /insta to download instagram video.')
 
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
@@ -32,6 +43,7 @@ class CommandHandler:
             return
 
         user_message = ' '.join(context.args)
+        logger.debug(f'Full message: {update.to_dict()}')
         logger.info(f"Received message from user: {user_message}")
 
         session = self.session_manager.get_or_create_session(user_id)
@@ -92,3 +104,79 @@ class CommandHandler:
             return
 
         await send_video_with_retry(update, path)
+
+    async def ask_with_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        # Early return if no media_group_id and no /ask command
+        if not update.message.media_group_id and not (update.message.caption and update.message.caption.startswith('/ask')):
+            return
+
+        user_id = update.message.from_user.id
+        if not await self.subscription_manager.is_subscriber(user_id, context.bot):
+            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+            return
+
+        logger.debug(f"Media group ID: {update.message.media_group_id}")
+        logger.debug(f"Message: {update.message.to_dict()}")
+
+        media_group_id = update.message.media_group_id
+
+        # Create lock for this media group if it doesn't exist
+        if media_group_id not in self.media_group_locks:
+            self.media_group_locks[media_group_id] = Lock()
+
+        async with self.media_group_locks[media_group_id]:
+            if media_group_id not in self.media_groups:
+                logger.debug(f"Creating new media group entry for {media_group_id}")
+                self.media_groups[media_group_id] = {
+                    'messages': [update.message],
+                    'caption': None,
+                    'processed': False
+                }
+
+                # Schedule processing after a delay
+                async def process_media_group():
+                    await asyncio.sleep(2)  # Wait for 2 seconds
+                    async with self.media_group_locks[media_group_id]:
+                        if media_group_id in self.media_groups and not self.media_groups[media_group_id]['processed']:
+                            group_data = self.media_groups[media_group_id]
+                            messages = group_data['messages']
+
+                            # Find message with /ask command
+                            caption = None
+                            for msg in messages:
+                                if msg.caption and msg.caption.startswith('/ask'):
+                                    caption = msg.caption.replace('/ask', '').strip()
+                                    break
+
+                            logger.debug(f"Processing media group {media_group_id}. Messages count: {len(messages)}")
+                            logger.debug(f"Final caption: {caption}")
+
+                            if not caption:
+                                await send_message_with_retry(update, "Please add /ask command with your question")
+                                return
+
+                            # Process all photos
+                            file_urls = []
+                            for message in messages:
+                                if message.photo:
+                                    file = await context.bot.get_file(message.photo[-1].file_id)
+                                    file_urls.append(file.file_path)
+
+                            if file_urls:
+                                logger.info(f"Processing {len(file_urls)} images with caption: {caption}")
+                                session = self.session_manager.get_or_create_session(user_id)
+                                reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
+                                await send_message_with_retry(update, reply)
+
+                            # Cleanup
+                            self.media_groups[media_group_id]['processed'] = True
+                            del self.media_groups[media_group_id]
+                            del self.media_group_locks[media_group_id]
+
+                # Start the delayed processing task
+                asyncio.create_task(process_media_group())
+            else:
+                # Add to existing group if not processed
+                if not self.media_groups[media_group_id]['processed']:
+                    logger.debug(f"Adding message to existing group {media_group_id}")
+                    self.media_groups[media_group_id]['messages'].append(update.message)
