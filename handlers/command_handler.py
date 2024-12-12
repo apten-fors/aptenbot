@@ -107,7 +107,6 @@ class CommandHandler:
 
     async def ask_with_image(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
-        chat_type = update.message.chat.type
 
         if not await self.subscription_manager.is_subscriber(user_id, context.bot):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
@@ -127,12 +126,18 @@ class CommandHandler:
             async with self.media_group_locks[media_group_id]:
                 if media_group_id not in self.media_groups:
                     logger.debug(f"Creating new media group entry for {media_group_id}")
-                    caption = (update.message.caption or '').replace('/ask', '').strip()
-                    self.media_groups[media_group_id] = {
-                        'messages': [update.message],
-                        'caption': caption,
-                        'processed': False
-                    }
+                    # Only get caption from the first message with /ask command
+                    if update.message.caption and update.message.caption.startswith('/ask'):
+                        caption = update.message.caption.replace('/ask', '').strip()
+                        self.media_groups[media_group_id] = {
+                            'messages': [update.message],
+                            'caption': caption,
+                            'processed': False
+                        }
+                        logger.debug(f"Created new group with caption: {caption}")
+                    else:
+                        # This is a subsequent message without /ask
+                        return
 
                     # Schedule processing after a delay
                     async def process_media_group():
@@ -170,9 +175,10 @@ class CommandHandler:
                     # Start the delayed processing task
                     asyncio.create_task(process_media_group())
                 else:
-                    # Add to existing group
-                    logger.debug(f"Adding message to existing group {media_group_id}")
-                    self.media_groups[media_group_id]['messages'].append(update.message)
+                    # Add to existing group if it exists and isn't processed
+                    if not self.media_groups[media_group_id]['processed']:
+                        logger.debug(f"Adding message to existing group {media_group_id}")
+                        self.media_groups[media_group_id]['messages'].append(update.message)
             return
 
         else:
