@@ -45,8 +45,7 @@ class MessageHandler:
             return
 
         # Extract the caption without the command
-        caption = update.message.caption or ''  # Handle None case
-        caption = caption.replace('/ask', '').strip()
+        caption = update.message.caption.replace('/ask', '').strip()
         logger.info(f"Received message from user: {caption}")
         if not caption:
             await send_message_with_retry(update, "Usage: /ask <your question>")
