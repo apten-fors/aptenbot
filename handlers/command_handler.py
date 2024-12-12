@@ -10,7 +10,7 @@ from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
 from config import OPENAI_MODEL
 import asyncio
-from threading import Lock
+from asyncio import Lock
 
 class CommandHandler:
     def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, openai_client: OpenAIClient, flux_client: FluxClient, instaloader_client: InstaloaderClient):
