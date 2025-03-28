@@ -12,3 +12,7 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MAX_RETRIES = 3
 RETRY_DELAY = 1
 SESSION_EXPIRY = 3600  # 1 hour
+SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", "You are a helpful assistant.")
+OPENAI_MODELS = ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o1-pro', 'o3-mini', 'o1-mini']
+OPENAI_MODELS_REASONING = ['o1', 'o1-pro', 'o3-mini', 'o1-mini']
+DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
