@@ -34,7 +34,7 @@ class CommandHandler:
                                       When you reply to bot it will initiate a new session with storing context. \
                                       Use /reset to reset the session or session will expire after 1 hour. \
                                       Use /insta to download instagram video. \
-                                      Use /set model to choose between OpenAI and Claude models.')
+                                      Use /set provider to choose between OpenAI and Claude models.')
 
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
