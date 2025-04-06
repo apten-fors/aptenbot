@@ -28,13 +28,16 @@ class CommandHandler:
 
     @staticmethod
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await send_message_with_retry(update, f'Hi, I am an useful AI bot. I can use both OpenAI and Claude models. \
-                                      Use /ask followed by your question to get a response in groups. \
-                                      For private chats, just send your question directly. \
-                                      When you reply to bot it will initiate a new session with storing context. \
-                                      Use /reset to reset the session or session will expire after 1 hour. \
-                                      Use /insta to download instagram video. \
-                                      Use /set provider to choose between OpenAI and Claude models.')
+        help_text = """Hi, I am an useful AI bot. I can use both OpenAI and Claude models.
+
+Use /ask followed by your question to get a response in groups.
+For private chats, just send your question directly.
+When you reply to bot it will initiate a new session with storing context.
+Use /reset to reset the session or session will expire after 1 hour.
+Use /insta to download instagram video.
+Use /set provider to choose between OpenAI and Claude models."""
+
+        await send_message_with_retry(update, help_text)
 
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.message.from_user.id
