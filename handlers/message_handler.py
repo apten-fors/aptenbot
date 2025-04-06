@@ -38,39 +38,41 @@ class MessageHandler:
         reply = await self.openai_client.process_message(session, user_message)
         await send_message_with_retry(update, reply)
 
-    async def handle_mention(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle messages where the bot is mentioned with @"""
+    async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle all text messages in group chats and check for bot mentions"""
         user_id = update.message.from_user.id
         message_text = update.message.text
         bot_username = context.bot.username
-
-        # Check if the bot is actually mentioned in the message
+        
+        logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
+        
+        # Check if the bot is mentioned in the message
         if f"@{bot_username}" not in message_text:
             return
-
+            
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
-
+        
         if not await self.subscription_manager.is_subscriber(user_id, update.get_bot()):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
-
+            
         # Remove the bot mention from the message
         user_message = message_text.replace(f"@{bot_username}", "").strip()
-
+        
         # If this is a reply to another message, include that message's text as context
         replied_text = ""
         if update.message.reply_to_message and update.message.reply_to_message.text:
             replied_text = update.message.reply_to_message.text
             user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
-
+            
         logger.info(f"Processing mention with message: {user_message}")
-
+        
         # Get or create a session for the user
         session = self.session_manager.get_or_create_session(user_id)
-
+        
         # Process the message with OpenAI
         reply = await self.openai_client.process_message(session, user_message)
-
+        
         # Reply to the message that mentioned the bot
         await send_message_with_retry(update, reply)
 
