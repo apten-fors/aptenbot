@@ -5,14 +5,17 @@ from utils.telegram_utils import send_message_with_retry
 from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
+from clients.claude_client import ClaudeClient
 import asyncio
 from asyncio import Lock
 
 class MessageHandler:
-    def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, openai_client: OpenAIClient):
+    def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, 
+                 openai_client: OpenAIClient, claude_client: ClaudeClient):
         self.session_manager = session_manager
         self.subscription_manager = subscription_manager
         self.openai_client = openai_client
+        self.claude_client = claude_client
         self.media_groups = {}  # Store media groups at class level
         self.media_group_locks = {}
 
@@ -35,7 +38,13 @@ class MessageHandler:
         logger.info(f"Received message from user: {user_message}")
 
         session = self.session_manager.get_or_create_session(user_id)
-        reply = await self.openai_client.process_message(session, user_message)
+        model_provider = self.session_manager.get_model_provider(user_id)
+        
+        if model_provider == "claude":
+            reply = await self.claude_client.process_message(session, user_message)
+        else:
+            reply = await self.openai_client.process_message(session, user_message)
+            
         await send_message_with_retry(update, reply)
 
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -43,36 +52,40 @@ class MessageHandler:
         user_id = update.message.from_user.id
         message_text = update.message.text
         bot_username = context.bot.username
-        
+
         logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
-        
+
         # Check if the bot is mentioned in the message
         if f"@{bot_username}" not in message_text:
             return
-            
+
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
-        
+
         if not await self.subscription_manager.is_subscriber(user_id, update.get_bot()):
             await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
             return
-            
+
         # Remove the bot mention from the message
         user_message = message_text.replace(f"@{bot_username}", "").strip()
-        
+
         # If this is a reply to another message, include that message's text as context
         replied_text = ""
         if update.message.reply_to_message and update.message.reply_to_message.text:
             replied_text = update.message.reply_to_message.text
             user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
-            
+
         logger.info(f"Processing mention with message: {user_message}")
-        
+
         # Get or create a session for the user
         session = self.session_manager.get_or_create_session(user_id)
-        
-        # Process the message with OpenAI
-        reply = await self.openai_client.process_message(session, user_message)
-        
+        model_provider = self.session_manager.get_model_provider(user_id)
+
+        # Process the message with the appropriate AI model
+        if model_provider == "claude":
+            reply = await self.claude_client.process_message(session, user_message)
+        else:
+            reply = await self.openai_client.process_message(session, user_message)
+
         # Reply to the message that mentioned the bot
         await send_message_with_retry(update, reply)
 
@@ -86,6 +99,10 @@ class MessageHandler:
             await send_message_with_retry(update, "Please use /ask command to interact with the bot in this group.")
             return
 
+        if not await self.subscription_manager.is_subscriber(user_id, update.get_bot()):
+            await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
+            return
+
         # Check if message is part of a media group
         if update.message.media_group_id:
             media_group_id = update.message.media_group_id
@@ -96,66 +113,60 @@ class MessageHandler:
 
             async with self.media_group_locks[media_group_id]:
                 if media_group_id not in self.media_groups:
-                    logger.debug(f"Creating new media group entry for {media_group_id}")
                     self.media_groups[media_group_id] = {
                         'messages': [update.message],
-                        'caption': update.message.caption,  # Store caption from first message
                         'processed': False
                     }
 
-                    # Schedule processing after a delay
+                    # Schedule processing of the media group
                     async def process_media_group():
-                        await asyncio.sleep(2)  # Wait for 2 seconds
+                        await asyncio.sleep(2)  # Give time for all images to be received
                         async with self.media_group_locks[media_group_id]:
-                            if media_group_id in self.media_groups and not self.media_groups[media_group_id]['processed']:
-                                group_data = self.media_groups[media_group_id]
-                                messages = group_data['messages']
-                                caption = group_data['caption'] or ''
+                            if not self.media_groups[media_group_id]['processed']:
+                                messages = self.media_groups[media_group_id]['messages']
+                                caption = None
 
-                                logger.debug(f"Processing media group {media_group_id}. Messages count: {len(messages)}")
-                                logger.debug(f"Caption: {caption}")
+                                # Use the caption from the first message or any message with a caption
+                                for msg in messages:
+                                    if msg.caption:
+                                        caption = msg.caption
+                                        break
 
                                 if not caption:
-                                    await send_message_with_retry(update, "Please add a caption to your images.")
-                                    return
+                                    caption = "What is in this image?"
 
-                                # Process all photos
                                 file_urls = []
                                 for message in messages:
                                     if message.photo:
                                         file = await context.bot.get_file(message.photo[-1].file_id)
                                         file_urls.append(file.file_path)
 
-                                if file_urls:
-                                    logger.info(f"Processing {len(file_urls)} images with caption: {caption}")
-                                    session = self.session_manager.get_or_create_session(user_id)
+                                session = self.session_manager.get_or_create_session(user_id)
+                                model_provider = self.session_manager.get_model_provider(user_id)
+                                
+                                if model_provider == "claude":
+                                    reply = await self.claude_client.process_message_with_image(session, caption, file_urls)
+                                else:
                                     reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
-                                    await send_message_with_retry(update, reply)
+                                
+                                await send_message_with_retry(update, reply)
+                                self.media_groups[media_group_id]['processed'] = True
 
-                                # Cleanup
-                                del self.media_groups[media_group_id]
-                                del self.media_group_locks[media_group_id]
-
-                    # Start the delayed processing task
                     asyncio.create_task(process_media_group())
                 else:
-                    # Add to existing group
-                    logger.debug(f"Adding message to existing group {media_group_id}")
                     self.media_groups[media_group_id]['messages'].append(update.message)
-            return
-
         else:
-            # Single photo case
-            caption = update.message.caption or ''
-            if not caption:
-                await send_message_with_retry(update, "Please add a caption to your image.")
-                return
+            # Single image handling
+            caption = update.message.caption or "What is in this image?"
+            file = await context.bot.get_file(update.message.photo[-1].file_id)
+            file_url = file.file_path
 
-            photo = update.message.photo[-1]
-            file = await context.bot.get_file(photo.file_id)
-            file_urls = [file.file_path]
-
-            logger.info(f"Processing single image with caption: {caption}")
             session = self.session_manager.get_or_create_session(user_id)
-            reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
+            model_provider = self.session_manager.get_model_provider(user_id)
+            
+            if model_provider == "claude":
+                reply = await self.claude_client.process_message_with_image(session, caption, [file_url])
+            else:
+                reply = await self.openai_client.process_message_with_image(session, caption, [file_url])
+                
             await send_message_with_retry(update, reply)

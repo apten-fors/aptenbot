@@ -4,6 +4,7 @@ from utils.logging_config import logger
 from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
+from clients.claude_client import ClaudeClient
 from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
 from handlers.message_handler import MessageHandler
@@ -15,15 +16,19 @@ class BotApp:
         self.session_manager = SessionManager()
         self.subscription_manager = SubscriptionManager()
         self.openai_client = OpenAIClient()
+        self.claude_client = ClaudeClient()
         self.flux_client = FluxClient()
         self.instaloader_client = InstaloaderClient()
-        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, self.openai_client)
+        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, 
+                                             self.openai_client, self.claude_client)
         self.command_handler = CommandHandler(self.session_manager,
                                               self.subscription_manager,
                                               self.openai_client,
+                                              self.claude_client,
                                               self.flux_client,
                                               self.instaloader_client)
-        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager, self.openai_client)
+        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager, 
+                                          self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     def register_handlers(self):
@@ -32,6 +37,7 @@ class BotApp:
         self.application.add_handler(TelegramCommandHandler("img", self.command_handler.img))
         self.application.add_handler(TelegramCommandHandler("insta", self.command_handler.insta))
         self.application.add_handler(TelegramCommandHandler("reset", self.command_handler.reset_session))
+        self.application.add_handler(TelegramCommandHandler("set", self.command_handler.set_model))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
         self.application.add_handler(TelegramMessageHandler(
             filters.TEXT & filters.ChatType.GROUPS,
@@ -59,6 +65,9 @@ class BotApp:
         logger.info("Starting the bot application")
         self.application.run_polling()
 
-if __name__ == '__main__':
-    bot = BotApp()
-    bot.run()
+if __name__ == "__main__":
+    try:
+        app = BotApp()
+        app.run()
+    except Exception as e:
+        logger.error(f"Error in main application: {e}", exc_info=True)
