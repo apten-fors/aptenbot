@@ -10,7 +10,7 @@ import asyncio
 from asyncio import Lock
 
 class MessageHandler:
-    def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager, 
+    def __init__(self, session_manager: SessionManager, subscription_manager: SubscriptionManager,
                  openai_client: OpenAIClient, claude_client: ClaudeClient):
         self.session_manager = session_manager
         self.subscription_manager = subscription_manager
@@ -39,16 +39,21 @@ class MessageHandler:
 
         session = self.session_manager.get_or_create_session(user_id)
         model_provider = self.session_manager.get_model_provider(user_id)
-        
+
         if model_provider == "claude":
             reply = await self.claude_client.process_message(session, user_message)
         else:
             reply = await self.openai_client.process_message(session, user_message)
-            
+
         await send_message_with_retry(update, reply)
 
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle all text messages in group chats and check for bot mentions"""
+        # Check if update.message exists
+        if not update.message:
+            logger.warning("Received an update with no message in handle_group_message")
+            return
+
         user_id = update.message.from_user.id
         message_text = update.message.text
         bot_username = context.bot.username
@@ -143,12 +148,12 @@ class MessageHandler:
 
                                 session = self.session_manager.get_or_create_session(user_id)
                                 model_provider = self.session_manager.get_model_provider(user_id)
-                                
+
                                 if model_provider == "claude":
                                     reply = await self.claude_client.process_message_with_image(session, caption, file_urls)
                                 else:
                                     reply = await self.openai_client.process_message_with_image(session, caption, file_urls)
-                                
+
                                 await send_message_with_retry(update, reply)
                                 self.media_groups[media_group_id]['processed'] = True
 
@@ -163,10 +168,10 @@ class MessageHandler:
 
             session = self.session_manager.get_or_create_session(user_id)
             model_provider = self.session_manager.get_model_provider(user_id)
-            
+
             if model_provider == "claude":
                 reply = await self.claude_client.process_message_with_image(session, caption, [file_url])
             else:
                 reply = await self.openai_client.process_message_with_image(session, caption, [file_url])
-                
+
             await send_message_with_retry(update, reply)
