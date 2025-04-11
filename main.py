@@ -117,12 +117,8 @@ class BotApp:
         await self.application.start()
         await self.application.updater.start_polling()
 
-        # Keep the application running
-        try:
-            await self.application.updater.stop_on_signal()
-        finally:
-            await self.application.stop()
-            await self.application.shutdown()
+        # Keep the application running until interrupted
+        await self.application.updater.wait_until_stopped()
 
     def run(self):
         # Run the async application in the event loop
