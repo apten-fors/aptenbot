@@ -55,13 +55,29 @@ class MessageHandler:
             return
 
         user_id = update.message.from_user.id
-        message_text = update.message.text
+        message_text = update.message.text or ""
         bot_username = context.bot.username
+        bot_mentioned = False
 
         logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
 
-        # Check if the bot is mentioned in the message
-        if f"@{bot_username}" not in message_text:
+        # Check if the bot is mentioned in the message text
+        if f"@{bot_username}" in message_text:
+            bot_mentioned = True
+            logger.debug("Bot mentioned in message text")
+
+        # Also check for mention entities
+        if not bot_mentioned and update.message.entities:
+            for entity in update.message.entities:
+                if entity.type == 'mention':
+                    mention_text = message_text[entity.offset:entity.offset + entity.length]
+                    if mention_text == f"@{bot_username}":
+                        bot_mentioned = True
+                        logger.debug("Bot mentioned via entity")
+                        break
+
+        # If bot is not mentioned, exit
+        if not bot_mentioned:
             return
 
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
