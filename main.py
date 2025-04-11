@@ -11,6 +11,7 @@ from handlers.message_handler import MessageHandler
 from handlers.command_handler import CommandHandler
 from handlers.reply_handler import ReplyHandler
 from telegram.ext import filters as ext_filters
+import asyncio
 
 class MentionFilter(ext_filters.MessageFilter):
     def __init__(self, username):
@@ -25,6 +26,9 @@ class MentionFilter(ext_filters.MessageFilter):
         return False
 
 class BotApp:
+    async def initialize_bot(self):
+        await self.application.bot.initialize()
+
     def __init__(self):
         self.session_manager = SessionManager()
         self.subscription_manager = SubscriptionManager()
@@ -43,8 +47,6 @@ class BotApp:
         self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        # Initialize the bot
-        self.application.bot.initialize()
 
     def register_handlers(self):
         self.application.add_handler(TelegramCommandHandler(["start", "help"], self.command_handler.start))
@@ -89,7 +91,8 @@ class BotApp:
             )
         )
 
-    def run(self):
+    async def run(self):
+        await self.initialize_bot()
         self.register_handlers()
         logger.info("Starting the bot application")
         self.application.run_polling()
@@ -97,6 +100,6 @@ class BotApp:
 if __name__ == "__main__":
     try:
         app = BotApp()
-        app.run()
+        asyncio.run(app.run())
     except Exception as e:
         logger.error(f"Error in main application: {e}", exc_info=True)
