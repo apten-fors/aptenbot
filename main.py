@@ -26,9 +26,6 @@ class MentionFilter(ext_filters.MessageFilter):
         return False
 
 class BotApp:
-    async def initialize_bot(self):
-        await self.application.bot.initialize()
-
     def __init__(self):
         self.session_manager = SessionManager()
         self.subscription_manager = SubscriptionManager()
@@ -47,8 +44,17 @@ class BotApp:
         self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        self.bot_username = None
+
+    async def get_bot_username(self):
+        # Get bot info from Telegram API
+        bot_info = await self.application.bot.get_me()
+        self.bot_username = bot_info.username
+        logger.info(f"Bot username retrieved from Telegram API: @{self.bot_username}")
+        return self.bot_username
 
     def register_handlers(self):
+        # Register handlers that don't need bot username first
         self.application.add_handler(TelegramCommandHandler(["start", "help"], self.command_handler.start))
         self.application.add_handler(TelegramCommandHandler("ask", self.command_handler.ask, filters=filters.COMMAND))
         self.application.add_handler(TelegramCommandHandler("img", self.command_handler.img))
@@ -56,23 +62,6 @@ class BotApp:
         self.application.add_handler(TelegramCommandHandler("reset", self.command_handler.reset_session))
         self.application.add_handler(TelegramCommandHandler("set", self.command_handler.set_model))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
-
-        # Get bot name for filter
-        bot_username = self.application.bot.username
-        mention_filter = MentionFilter(bot_username)
-
-        # Handler for bot mentions in groups
-        self.application.add_handler(TelegramMessageHandler(
-            mention_filter & filters.ChatType.GROUPS,
-            self.message_handler.handle_group_message,
-            block=True
-        ))
-
-        # Updated handler for all messages in groups
-        self.application.add_handler(TelegramMessageHandler(
-            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
-            self.message_handler.handle_group_message
-        ))
 
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.message_handler.handle_message))
         self.application.add_handler(TelegramMessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, self.message_handler.handle_image))
@@ -91,15 +80,57 @@ class BotApp:
             )
         )
 
-    async def run(self):
-        await self.initialize_bot()
+    def register_mention_handlers(self):
+        # Create filter for bot mentions
+        mention_filter = MentionFilter(self.bot_username)
+
+        # Handler for bot mentions in groups
+        self.application.add_handler(TelegramMessageHandler(
+            mention_filter & filters.ChatType.GROUPS,
+            self.message_handler.handle_group_message,
+            block=True
+        ))
+
+        # Handler for all messages in groups
+        self.application.add_handler(TelegramMessageHandler(
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
+            self.message_handler.handle_group_message
+        ))
+
+    async def setup(self):
+        # Register basic handlers
         self.register_handlers()
+
+        # Get bot username and register mention handlers
+        await self.get_bot_username()
+        self.register_mention_handlers()
+
+        logger.info("All handlers registered")
+
+    async def run_async(self):
+        # Set up all handlers and get bot info
+        await self.setup()
+
+        # Start the bot
         logger.info("Starting the bot application")
-        self.application.run_polling()
+        await self.application.initialize()
+        await self.application.start()
+        await self.application.updater.start_polling()
+
+        # Keep the application running
+        try:
+            await self.application.updater.stop_on_signal()
+        finally:
+            await self.application.stop()
+            await self.application.shutdown()
+
+    def run(self):
+        # Run the async application in the event loop
+        asyncio.run(self.run_async())
 
 if __name__ == "__main__":
     try:
         app = BotApp()
-        asyncio.run(app.run())
+        app.run()
     except Exception as e:
         logger.error(f"Error in main application: {e}", exc_info=True)
