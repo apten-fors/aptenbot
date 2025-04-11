@@ -39,10 +39,13 @@ class BotApp:
         self.application.add_handler(TelegramCommandHandler("reset", self.command_handler.reset_session))
         self.application.add_handler(TelegramCommandHandler("set", self.command_handler.set_model))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
+
+        # Updated handler for messages in groups with mentions
         self.application.add_handler(TelegramMessageHandler(
-            filters.TEXT & filters.ChatType.GROUPS,
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             self.message_handler.handle_group_message
         ))
+
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.message_handler.handle_message))
         self.application.add_handler(TelegramMessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, self.message_handler.handle_image))
         self.application.add_handler(

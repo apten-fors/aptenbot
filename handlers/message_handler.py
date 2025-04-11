@@ -55,9 +55,38 @@ class MessageHandler:
             return
 
         user_id = update.message.from_user.id
-        message_text = update.message.text or ""
+
+        # Get message text or caption
+        message_text = ""
+        if update.message.text:
+            message_text = update.message.text
+        elif update.message.caption:
+            message_text = update.message.caption
+
+        if not message_text:
+            logger.debug("Message has no text or caption")
+            return
+
         bot_username = context.bot.username
         bot_mentioned = False
+
+        # Log more details for debugging
+        logger.debug(f"[DETAILED DEBUG] Full update object: {update.to_dict()}")
+        logger.debug(f"[DETAILED DEBUG] Bot username: {bot_username}")
+
+        # Determine which entities to check (text or caption)
+        entities = []
+        if update.message.text and update.message.entities:
+            entities = update.message.entities
+        elif update.message.caption and update.message.caption_entities:
+            entities = update.message.caption_entities
+
+        # Log entities information
+        if entities:
+            logger.debug(f"[DETAILED DEBUG] Message has {len(entities)} entities")
+            for i, entity in enumerate(entities):
+                entity_text = message_text[entity.offset:entity.offset + entity.length]
+                logger.debug(f"[DETAILED DEBUG] Entity {i}: type={entity.type}, text='{entity_text}'")
 
         logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
 
@@ -67,10 +96,11 @@ class MessageHandler:
             logger.debug("Bot mentioned in message text")
 
         # Also check for mention entities
-        if not bot_mentioned and update.message.entities:
-            for entity in update.message.entities:
+        if not bot_mentioned and entities:
+            for entity in entities:
                 if entity.type == 'mention':
                     mention_text = message_text[entity.offset:entity.offset + entity.length]
+                    logger.debug(f"[DETAILED DEBUG] Found mention entity: '{mention_text}', comparing to '@{bot_username}'")
                     if mention_text == f"@{bot_username}":
                         bot_mentioned = True
                         logger.debug("Bot mentioned via entity")
@@ -78,6 +108,7 @@ class MessageHandler:
 
         # If bot is not mentioned, exit
         if not bot_mentioned:
+            logger.debug(f"[DETAILED DEBUG] Bot not mentioned, returning")
             return
 
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
@@ -91,9 +122,14 @@ class MessageHandler:
 
         # If this is a reply to another message, include that message's text as context
         replied_text = ""
-        if update.message.reply_to_message and update.message.reply_to_message.text:
-            replied_text = update.message.reply_to_message.text
-            user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
+        if update.message.reply_to_message:
+            if update.message.reply_to_message.text:
+                replied_text = update.message.reply_to_message.text
+            elif update.message.reply_to_message.caption:
+                replied_text = update.message.reply_to_message.caption
+
+            if replied_text:
+                user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
 
         logger.info(f"Processing mention with message: {user_message}")
 
