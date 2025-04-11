@@ -43,6 +43,8 @@ class BotApp:
         self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        # Initialize the bot
+        self.application.bot.initialize()
 
     def register_handlers(self):
         self.application.add_handler(TelegramCommandHandler(["start", "help"], self.command_handler.start))
