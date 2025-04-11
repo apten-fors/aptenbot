@@ -48,7 +48,7 @@ class MessageHandler:
         await send_message_with_retry(update, reply)
 
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle all text messages in group chats and check for bot mentions"""
+        """Handle mentions of the bot in group chats."""
         # Check if update.message exists
         if not update.message:
             logger.warning("Received an update with no message in handle_group_message")
@@ -60,56 +60,18 @@ class MessageHandler:
         message_text = ""
         if update.message.text:
             message_text = update.message.text
+            logger.debug("Processing mention found in TEXT message")
         elif update.message.caption:
             message_text = update.message.caption
+            logger.debug("Processing mention found in CAPTION message")
 
         if not message_text:
-            logger.debug("Message has no text or caption")
+            logger.debug("Message has no text or caption, should not happen due to filters")
             return
 
+        # Bot username from context (can be slightly different than config)
         bot_username = context.bot.username
-        bot_mentioned = False
-
-        # Log more details for debugging
-        logger.debug(f"[DETAILED DEBUG] Full update object: {update.to_dict()}")
-        logger.debug(f"[DETAILED DEBUG] Bot username: {bot_username}")
-
-        # Determine which entities to check (text or caption)
-        entities = []
-        if update.message.text and update.message.entities:
-            entities = update.message.entities
-        elif update.message.caption and update.message.caption_entities:
-            entities = update.message.caption_entities
-
-        # Log entities information
-        if entities:
-            logger.debug(f"[DETAILED DEBUG] Message has {len(entities)} entities")
-            for i, entity in enumerate(entities):
-                entity_text = message_text[entity.offset:entity.offset + entity.length]
-                logger.debug(f"[DETAILED DEBUG] Entity {i}: type={entity.type}, text='{entity_text}'")
-
-        logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
-
-        # Check if the bot is mentioned in the message text
-        if f"@{bot_username}" in message_text:
-            bot_mentioned = True
-            logger.debug("Bot mentioned in message text")
-
-        # Also check for mention entities
-        if not bot_mentioned and entities:
-            for entity in entities:
-                if entity.type == 'mention':
-                    mention_text = message_text[entity.offset:entity.offset + entity.length]
-                    logger.debug(f"[DETAILED DEBUG] Found mention entity: '{mention_text}', comparing to '@{bot_username}'")
-                    if mention_text == f"@{bot_username}":
-                        bot_mentioned = True
-                        logger.debug("Bot mentioned via entity")
-                        break
-
-        # If bot is not mentioned, exit
-        if not bot_mentioned:
-            logger.debug(f"[DETAILED DEBUG] Bot not mentioned, returning")
-            return
+        logger.debug(f"Handler invoked for message: '{message_text}' (bot: @{bot_username})")
 
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
 

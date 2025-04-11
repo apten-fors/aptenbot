@@ -1,5 +1,5 @@
 from telegram.ext import ApplicationBuilder, CommandHandler as TelegramCommandHandler, MessageHandler as TelegramMessageHandler, filters
-from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN, BOT_USERNAME
 from utils.logging_config import logger
 from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
@@ -11,19 +11,37 @@ from handlers.message_handler import MessageHandler
 from handlers.command_handler import CommandHandler
 from handlers.reply_handler import ReplyHandler
 from telegram.ext import filters as ext_filters
-import asyncio
 
 class MentionFilter(ext_filters.MessageFilter):
     def __init__(self, username):
         super().__init__()
         self.username = username
+        logger.debug(f"MentionFilter initialized for username: @{self.username}")
 
     def filter(self, message):
+        target_mention = f"@{self.username}"
+        text_to_check = None
+        source = None
+
         if message.text:
-            return f"@{self.username}" in message.text
-        if message.caption:
-            return f"@{self.username}" in message.caption
-        return False
+            text_to_check = message.text
+            source = "text"
+        elif message.caption:
+            text_to_check = message.caption
+            source = "caption"
+
+        if text_to_check:
+            # Log before check
+            logger.debug(f"MentionFilter checking message ({source}): '{text_to_check}' for '{target_mention}' (case-insensitive)")
+            # Perform case-insensitive check
+            result = target_mention.lower() in text_to_check.lower()
+            # Log after check
+            logger.debug(f"MentionFilter result: {result}")
+            return result
+        else:
+            # Log if no text/caption
+            logger.debug("MentionFilter: Message has no text or caption to check.")
+            return False
 
 class BotApp:
     def __init__(self):
@@ -44,16 +62,12 @@ class BotApp:
         self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        self.bot_username = None
-
-    async def get_bot_username(self):
-        # Get bot info from Telegram API
-        bot_info = await self.application.bot.get_me()
-        self.bot_username = bot_info.username
-        logger.info(f"Bot username retrieved from Telegram API: @{self.bot_username}")
-        return self.bot_username
 
     def register_handlers(self):
+        # Get bot username from config
+        bot_username = BOT_USERNAME
+        logger.info(f"Using bot username from config: @{bot_username}")
+
         # Register handlers that don't need bot username first
         self.application.add_handler(TelegramCommandHandler(["start", "help"], self.command_handler.start))
         self.application.add_handler(TelegramCommandHandler("ask", self.command_handler.ask, filters=filters.COMMAND))
@@ -80,49 +94,26 @@ class BotApp:
             )
         )
 
-    def register_mention_handlers(self):
+        # Register mention handlers
         # Create filter for bot mentions
-        mention_filter = MentionFilter(self.bot_username)
+        mention_filter = MentionFilter(bot_username)
 
         # Handler for bot mentions in groups
         self.application.add_handler(TelegramMessageHandler(
-            mention_filter & filters.ChatType.GROUPS,
+            mention_filter & (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             self.message_handler.handle_group_message,
-            block=True
+            block=True # Make sure this handler blocks if mention found
         ))
-
-        # Handler for all messages in groups
-        self.application.add_handler(TelegramMessageHandler(
-            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
-            self.message_handler.handle_group_message
-        ))
-
-    async def setup(self):
-        # Register basic handlers
-        self.register_handlers()
-
-        # Get bot username and register mention handlers
-        await self.get_bot_username()
-        self.register_mention_handlers()
 
         logger.info("All handlers registered")
 
-    async def run_async(self):
-        # Set up all handlers and get bot info
-        await self.setup()
-
-        # Start the bot
-        logger.info("Starting the bot application")
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
-
-        # Keep the application running until interrupted
-        await self.application.updater.wait_until_stopped()
-
     def run(self):
-        # Run the async application in the event loop
-        asyncio.run(self.run_async())
+        # Register handlers
+        self.register_handlers()
+
+        # Run the bot using the standard blocking polling method
+        logger.info("Starting the bot application using run_polling")
+        self.application.run_polling()
 
 if __name__ == "__main__":
     try:
