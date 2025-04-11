@@ -10,6 +10,19 @@ from clients.instaloader import InstaloaderClient
 from handlers.message_handler import MessageHandler
 from handlers.command_handler import CommandHandler
 from handlers.reply_handler import ReplyHandler
+from telegram.ext import filters as ext_filters
+
+class MentionFilter(ext_filters.MessageFilter):
+    def __init__(self, username):
+        super().__init__()
+        self.username = username
+
+    def filter(self, message):
+        if message.text:
+            return f"@{self.username}" in message.text
+        if message.caption:
+            return f"@{self.username}" in message.caption
+        return False
 
 class BotApp:
     def __init__(self):
@@ -19,7 +32,7 @@ class BotApp:
         self.claude_client = ClaudeClient()
         self.flux_client = FluxClient()
         self.instaloader_client = InstaloaderClient()
-        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, 
+        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager,
                                              self.openai_client, self.claude_client)
         self.command_handler = CommandHandler(self.session_manager,
                                               self.subscription_manager,
@@ -27,7 +40,7 @@ class BotApp:
                                               self.claude_client,
                                               self.flux_client,
                                               self.instaloader_client)
-        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager, 
+        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
@@ -40,7 +53,18 @@ class BotApp:
         self.application.add_handler(TelegramCommandHandler("set", self.command_handler.set_model))
         self.application.add_handler(TelegramMessageHandler(filters.TEXT & filters.REPLY, self.reply_handler.handle_reply))
 
-        # Updated handler for messages in groups with mentions
+        # Get bot name for filter
+        bot_username = self.application.bot.username
+        mention_filter = MentionFilter(bot_username)
+
+        # Handler for bot mentions in groups
+        self.application.add_handler(TelegramMessageHandler(
+            mention_filter & filters.ChatType.GROUPS,
+            self.message_handler.handle_group_message,
+            block=True
+        ))
+
+        # Updated handler for all messages in groups
         self.application.add_handler(TelegramMessageHandler(
             (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             self.message_handler.handle_group_message
