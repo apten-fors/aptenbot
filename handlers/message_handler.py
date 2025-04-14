@@ -48,21 +48,30 @@ class MessageHandler:
         await send_message_with_retry(update, reply)
 
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle all text messages in group chats and check for bot mentions"""
+        """Handle mentions of the bot in group chats."""
         # Check if update.message exists
         if not update.message:
             logger.warning("Received an update with no message in handle_group_message")
             return
 
         user_id = update.message.from_user.id
-        message_text = update.message.text
-        bot_username = context.bot.username
 
-        logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
+        # Get message text or caption
+        message_text = ""
+        if update.message.text:
+            message_text = update.message.text
+            logger.debug("Processing mention found in TEXT message")
+        elif update.message.caption:
+            message_text = update.message.caption
+            logger.debug("Processing mention found in CAPTION message")
 
-        # Check if the bot is mentioned in the message
-        if f"@{bot_username}" not in message_text:
+        if not message_text:
+            logger.debug("Message has no text or caption, should not happen due to filters")
             return
+
+        # Bot username from context (can be slightly different than config)
+        bot_username = context.bot.username
+        logger.debug(f"Handler invoked for message: '{message_text}' (bot: @{bot_username})")
 
         logger.info(f"Bot was mentioned in a group chat by user {user_id}")
 
@@ -75,9 +84,14 @@ class MessageHandler:
 
         # If this is a reply to another message, include that message's text as context
         replied_text = ""
-        if update.message.reply_to_message and update.message.reply_to_message.text:
-            replied_text = update.message.reply_to_message.text
-            user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
+        if update.message.reply_to_message:
+            if update.message.reply_to_message.text:
+                replied_text = update.message.reply_to_message.text
+            elif update.message.reply_to_message.caption:
+                replied_text = update.message.reply_to_message.caption
+
+            if replied_text:
+                user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
 
         logger.info(f"Processing mention with message: {user_message}")
 
