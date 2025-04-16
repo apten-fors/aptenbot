@@ -18,7 +18,7 @@ SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", "You are a helpful assistant.")
 OPENAI_MODELS = ['gpt-4.5-preview', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o1-pro', 'o3-mini', 'o1-mini']
 OPENAI_MODELS_REASONING = ['o1', 'o1-pro', 'o3-mini', 'o1-mini']
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
-ANTHROPIC_MODELS = ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022']
+ANTHROPIC_MODELS = ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-5-sonnet-latest']
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
 
 # Default model provider to use (openai or claude)

@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import List, Dict
+from typing import List, Dict, Any
 from openai import AsyncOpenAI, OpenAIError, RateLimitError
 from utils.logging_config import logger
 from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODELS, DEFAULT_OPENAI_MODEL
@@ -19,20 +19,14 @@ class OpenAIClient:
         async with AsyncOpenAI(api_key=self.api_key) as client:
             yield client
 
-    async def process_message(self, session: List[Dict[str, str]], user_message: str) -> str:
-        session.append({"role": "user", "content": user_message})
-
+    async def process_message(self, session: Any, user_message: str) -> str:
         try:
             logger.info("Sending request to OpenAI API")
-            async with self.get_client() as client:
-                response = await client.chat.completions.create(
-                    model=self.model,
-                    messages=session
-                )
-            reply = response.choices[0].message.content.strip()
-            session.append({"role": "assistant", "content": reply})
-            logger.info(f"Received response from OpenAI API: {reply}")
-            return reply
+
+            response = await session.process_openai_message(user_message, self)
+
+            logger.info(f"Received response from OpenAI API: {response}")
+            return response
         except RateLimitError as e:
             logger.error(f"Rate limit exceeded: {e}")
             return "API rate limit reached. Please try again later."
@@ -43,7 +37,7 @@ class OpenAIClient:
             logger.error(f"Unexpected error: {e}")
             return "An unexpected error occurred."
 
-    async def process_message_with_image(self, session: List[Dict[str, str]], user_message: str, image_urls: List[str]) -> str:
+    async def process_message_with_image(self, session: Any, user_message: str, image_urls: List[str]) -> str:
         # Format the content as a list with text and images
         message_content = [{"type": "text", "text": user_message}]
 
@@ -57,20 +51,35 @@ class OpenAIClient:
             })
 
         # if model name starts with o1 use gpt-4o instead
-        if self.model.startswith("o1"):
-            self.model = "gpt-4o"
-
-        session.append({"role": "user", "content": message_content})
+        model_to_use = self.model
+        if model_to_use.startswith("o1"):
+            model_to_use = "gpt-4o"
 
         try:
             logger.info(f"Sending request to OpenAI Vision API with {len(image_urls)} images")
+
+            # Get messages from session
+            messages = session.data.get('messages', [])
+
+            # Add user message with image content
+            messages.append({"role": "user", "content": message_content})
+
             async with self.get_client() as client:
                 response = await client.chat.completions.create(
-                    model=self.model,
-                    messages=session
+                    model=model_to_use,
+                    messages=[
+                        {"role": m["role"], "content": m["content"]}
+                        for m in messages
+                    ]
                 )
             reply = response.choices[0].message.content.strip()
-            session.append({"role": "assistant", "content": reply})
+
+            # Add assistant message to history
+            messages.append({"role": "assistant", "content": reply})
+
+            # Update messages in session data
+            session.data['messages'] = messages
+
             logger.info(f"Received response from OpenAI API: {reply}")
             return reply
         except RateLimitError as e:

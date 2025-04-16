@@ -19,7 +19,7 @@ class BotApp:
         self.claude_client = ClaudeClient()
         self.flux_client = FluxClient()
         self.instaloader_client = InstaloaderClient()
-        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager, 
+        self.message_handler = MessageHandler(self.session_manager, self.subscription_manager,
                                              self.openai_client, self.claude_client)
         self.command_handler = CommandHandler(self.session_manager,
                                               self.subscription_manager,
@@ -27,7 +27,7 @@ class BotApp:
                                               self.claude_client,
                                               self.flux_client,
                                               self.instaloader_client)
-        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager, 
+        self.reply_handler = ReplyHandler(self.session_manager, self.subscription_manager,
                                           self.openai_client, self.claude_client)
         self.application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
