@@ -24,14 +24,24 @@ class ReplyHandler:
         # Check if the bot is mentioned in the reply
         bot_mentioned = f"@{bot_username}" in message_text
 
+<<<<<<< HEAD
         # --- Logic for Group Replies with Mention ---
         if is_group and bot_mentioned:
             logger.info(f"Processing reply with mention in group by user {user_id}")
 
+=======
+        # If this is a group chat and the bot is not mentioned, ignore the message
+        if update.message.chat.type in ['group', 'supergroup'] and not bot_mentioned:
+            return
+
+        # If it's a reply to the bot's message, process it
+        if update.message.reply_to_message and update.message.reply_to_message.from_user.username == bot_username:
+>>>>>>> c8a9a8a (Fix changes)
             if not await self.subscription_manager.is_subscriber(user_id, context.bot):
                 await send_message_with_retry(update, "To use this bot, you need to be a subscriber of @korobo4ka_xoroni channel.")
                 return
 
+<<<<<<< HEAD
             # Remove the bot mention from the reply text
             user_message = message_text.replace(f"@{bot_username}", "").strip()
 
@@ -51,6 +61,13 @@ class ReplyHandler:
                  logger.debug("Replied-to message has no text/caption, using reply message directly.")
 
             logger.info(f"Processing mention reply with context: {user_message}")
+=======
+            # If the bot is mentioned, remove the mention from the message text
+            if bot_mentioned:
+                message_text = message_text.replace(f"@{bot_username}", "").strip()
+
+            logger.info(f"Processing reply to bot: {message_text}")
+>>>>>>> c8a9a8a (Fix changes)
 
             # Get or create a session for this user
             session = self.session_manager.get_or_create_session(user_id)
