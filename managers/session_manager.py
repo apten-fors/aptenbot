@@ -164,6 +164,7 @@ class Session:
             async with claude_client.get_client() as client:
                 response = await client.messages.create(
                     model=model_id,
+                    max_tokens=4096,
                     messages=claude_messages,
                     system=SYSTEM_PROMPT
                 )
