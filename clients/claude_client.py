@@ -48,7 +48,7 @@ class ClaudeClient:
                 full_url = f"https://api.telegram.org/file/bot{self.telegram_bot_token}/{url}"
                 logger.debug(f"Converting relative path to full URL: {url} -> {full_url}")
                 url = full_url
-                
+
             message_blocks.append({
                 "type": "image",
                 "source": {
@@ -80,7 +80,7 @@ class ClaudeClient:
         try:
             logger.info(f"Sending request to Anthropic API with {len(image_urls)} images")
             logger.debug(f"Final image URLs: {[block['source']['url'] for block in message_blocks if block['type'] == 'image']}")
-            
+
             async with self.get_client() as client:
                 response = await client.messages.create(
                     model=self.model,
