@@ -35,11 +35,13 @@ async def handle_help(message: Message):
         "/start - Introduction to the bot\n"
         "/new - Start a new conversation\n"
         "/model - Select an AI model\n"
+        "/img - Generate images (DALL-E or Flux)\n"
+        "/imgmodel - Select default image generation model\n"
         "/help - Show this help message\n\n"
         "<b>Using the bot:</b>\n"
         "• In <b>private chat</b>, just send messages directly\n"
         "• In <b>groups</b>, tag me or use /ask to get my attention\n"
-        "• <b>Image analysis</b> works in both private and group chats\n"
+        "• <b>Image generation</b>: use /img [dalle|flux] your prompt\n"
         "• <b>Group chats</b>: Add /ask when posting images for analysis\n\n"
         "Each user has their own conversation history that persists until you start a new conversation with /new"
     )
@@ -77,53 +79,121 @@ async def handle_model_command(message: Message, session_manager):
     await message.answer(response, parse_mode="HTML")
 
 @router.message(F.text.regexp(r"^[1-9]\d*$") & F.chat.type == "private")
-async def handle_model_selection(message: Message, session_manager):
+async def handle_number_selection(message: Message, session_manager):
     user_id = message.from_user.id
-
-    # Check if user is in model selection state
     session = session_manager.get_or_create_session(user_id)
-    if session.get_state() != "selecting_model":
-        return
+    state = session.get_state()
 
-    try:
-        selected_idx = int(message.text) - 1
-        if 0 <= selected_idx < len(MODELS):
-            selected_model = MODELS[selected_idx]
-            # Устанавливаем только провайдер, а не конкретную модель
-            session.update_model(selected_model['provider'])
+    # Обработка выбора модели
+    if state == "selecting_model":
+        try:
+            selected_idx = int(message.text) - 1
+            if 0 <= selected_idx < len(MODELS):
+                selected_model = MODELS[selected_idx]
+                # Устанавливаем только провайдер, а не конкретную модель
+                session.update_model(selected_model['provider'])
+                await message.answer(
+                    f"✅ Provider switched to <b>{selected_model['name']}</b>.",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer("❌ Invalid selection. Please choose a valid number from the list.")
+        except ValueError:
+            await message.answer("❌ Please enter a valid number.")
+        finally:
+            # Clear selection state
+            session.clear_state()
+    
+    # Обработка выбора модели для изображений
+    elif state == "selecting_img_model":
+        try:
+            selection = int(message.text)
+            if selection == 1:
+                provider = "dalle"
+            elif selection == 2:
+                provider = "flux"
+            else:
+                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                return
+
+            session.update_image_model(provider)
             await message.answer(
-                f"✅ Provider switched to <b>{selected_model['name']}</b>.",
+                f"✅ Default image model set to <b>{provider.upper()}</b>",
                 parse_mode="HTML"
             )
-        else:
-            await message.answer("❌ Invalid selection. Please choose a valid number from the list.")
-    except ValueError:
-        await message.answer("❌ Please enter a valid number.")
-    finally:
-        # Clear selection state
-        session.clear_state()
+        finally:
+            # Clear selection state
+            session.clear_state()
 
-@router.message(Command("img"))
-async def handle_img_command(message: Message, openai_client):
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.answer("Please provide a prompt for image generation.")
+@router.message(Command("imgmodel"))
+async def handle_imgmodel_command(message: Message, session_manager):
+    user_id = message.from_user.id
+
+    args = message.text.split()
+    if len(args) > 1 and args[1] in ["dalle", "flux"]:
+        provider = args[1]
+        session = session_manager.get_or_create_session(user_id)
+        session.update_image_model(provider)
+        await message.answer(f"✅ Default image model set to <b>{provider.upper()}</b>", parse_mode="HTML")
         return
 
-    prompt = args[1]
-    await message.answer("Generating image...")
+    # Display options if no valid provider specified
+    session = session_manager.get_or_create_session(user_id)
+    current_img_provider = session.get_image_model() if hasattr(session, "get_image_model") else "dalle"
+
+    dalle_current = "✓ " if current_img_provider == "dalle" else ""
+    flux_current = "✓ " if current_img_provider == "flux" else ""
+
+    response = (
+        "🖼️ <b>Select default image generation model:</b>\n\n"
+        f"1. {dalle_current}DALL-E (OpenAI)\n"
+        f"2. {flux_current}Flux\n\n"
+        "Reply with a number or use /imgmodel dalle or /imgmodel flux"
+    )
+
+    # Set selection state
+    session.update_state("selecting_img_model")
+
+    await message.answer(response, parse_mode="HTML")
+
+@router.message(Command("img"))
+async def handle_img_command(message: Message, openai_client, flux_client, session_manager):
+    user_id = message.from_user.id
+    args = message.text.split()
+
+    # Get user's default provider or use dalle as fallback
+    session = session_manager.get_or_create_session(user_id)
+    default_provider = session.get_image_model() if hasattr(session, "get_image_model") else "dalle"
+
+    # Check if a provider is specified
+    if len(args) > 1 and args[1] in ["dalle", "flux"]:
+        provider = args[1]
+        prompt = " ".join(args[2:])
+    else:
+        provider = default_provider
+        prompt = " ".join(args[1:])
+
+    if not prompt:
+        await message.answer(f"Usage: /img [dalle|flux] <prompt>\nCurrent default: {default_provider.upper()}")
+        return
+
+    await message.answer(f"Generating image using {provider.upper()}...")
 
     try:
-        async with openai_client.get_client() as client:
-            response = await client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )
-        image_url = response.data[0].url
-        await message.answer_photo(image_url)
+        if provider == "dalle":
+            async with openai_client.get_client() as client:
+                response = await client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    size="1024x1024",
+                    quality="standard",
+                    n=1,
+                )
+            image_url = response.data[0].url
+            await message.answer_photo(image_url)
+        else:  # flux
+            image_url = await flux_client.generate_image(prompt)
+            await message.answer_photo(image_url)
     except Exception as e:
         await message.answer(f"Error generating image: {str(e)}")
 

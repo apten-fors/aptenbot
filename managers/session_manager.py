@@ -14,6 +14,7 @@ class SessionManager:
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': current_time,
                 'model_provider': DEFAULT_MODEL_PROVIDER,
+                'image_model': 'dalle',  # Default image model
                 'state': None
             }
         else:
@@ -22,11 +23,15 @@ class SessionManager:
         return Session(self.sessions[user_id])
 
     def create_new_session(self, user_id: int) -> None:
+        # Preserve model preferences when creating a new session
         model_provider = self.sessions.get(user_id, {}).get('model_provider', DEFAULT_MODEL_PROVIDER)
+        image_model = self.sessions.get(user_id, {}).get('image_model', 'dalle')
+
         self.sessions[user_id] = {
             'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
             'last_activity': time.time(),
             'model_provider': model_provider,
+            'image_model': image_model,
             'state': None
         }
 
@@ -45,6 +50,7 @@ class SessionManager:
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': time.time(),
                 'model_provider': provider,
+                'image_model': 'dalle',
                 'state': None
             }
 
@@ -86,6 +92,14 @@ class Session:
     def get_provider(self) -> str:
         """Get the provider for the current model"""
         return self.data.get('model_provider', DEFAULT_MODEL_PROVIDER)
+
+    def update_image_model(self, model_id: str) -> None:
+        """Update the image generation model for this session"""
+        self.data['image_model'] = model_id
+
+    def get_image_model(self) -> str:
+        """Get the current image generation model"""
+        return self.data.get('image_model', 'dalle')
 
     async def process_openai_message(self, message: str, openai_client):
         """Process a message using OpenAI"""
