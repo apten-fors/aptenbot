@@ -12,4 +12,4 @@ COPY handlers/ /app/handlers/
 COPY main.py /app/main.py
 COPY config.py /app/config.py
 
-CMD ["python", "main.py"]
+CMD ["python", "bot.py"]
