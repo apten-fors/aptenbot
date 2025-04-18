@@ -43,10 +43,13 @@ class OpenAIClient:
 
         # Add all image URLs to the content
         for url in image_urls:
+            # Telegram file paths need to be fetched and processed differently
+            # They're not direct URLs that OpenAI can access
             message_content.append({
                 "type": "image_url",
                 "image_url": {
-                    "url": url
+                    "url": url,
+                    "detail": "auto"
                 }
             })
 
@@ -57,24 +60,32 @@ class OpenAIClient:
 
         try:
             logger.info(f"Sending request to OpenAI Vision API with {len(image_urls)} images")
+            logger.debug(f"Image URLs: {image_urls}")
 
             # Get messages from session
             messages = session.data.get('messages', [])
 
-            # Add user message with image content
-            messages.append({"role": "user", "content": message_content})
+            # Create a new list with only text messages for history
+            history_messages = []
+            for m in messages:
+                if m["role"] == "user" or m["role"] == "assistant" or m["role"] == "developer":
+                    if isinstance(m["content"], str):
+                        history_messages.append({"role": m["role"], "content": m["content"]})
+                    elif m["role"] == "developer":  # System message
+                        history_messages.append({"role": "system", "content": m["content"]})
+
+            # Add the current message with images
+            history_messages.append({"role": "user", "content": message_content})
 
             async with self.get_client() as client:
                 response = await client.chat.completions.create(
                     model=model_to_use,
-                    messages=[
-                        {"role": m["role"], "content": m["content"]}
-                        for m in messages
-                    ]
+                    messages=history_messages
                 )
             reply = response.choices[0].message.content.strip()
 
-            # Add assistant message to history
+            # Add messages to history (only storing the text part)
+            messages.append({"role": "user", "content": user_message + " [with images]"})
             messages.append({"role": "assistant", "content": reply})
 
             # Update messages in session data
