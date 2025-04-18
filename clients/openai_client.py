@@ -2,11 +2,12 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 from openai import AsyncOpenAI, OpenAIError, RateLimitError
 from utils.logging_config import logger
-from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODELS, DEFAULT_OPENAI_MODEL
+from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MODELS, DEFAULT_OPENAI_MODEL, TELEGRAM_BOT_TOKEN
 
 class OpenAIClient:
     def __init__(self):
         self.api_key = OPENAI_API_KEY
+        self.telegram_bot_token = TELEGRAM_BOT_TOKEN
 
         if OPENAI_MODEL not in OPENAI_MODELS:
             logger.warning(f"Model {OPENAI_MODEL} specified in environment variables is not valid. Falling back to {DEFAULT_OPENAI_MODEL}")
@@ -43,8 +44,13 @@ class OpenAIClient:
 
         # Add all image URLs to the content
         for url in image_urls:
-            # Telegram file paths need to be fetched and processed differently
-            # They're not direct URLs that OpenAI can access
+            # Telegram file paths need to be converted to full URLs that are accessible from outside
+            # For Telegram Bot API, we need to add the base URL
+            if not url.startswith(('http://', 'https://')):
+                full_url = f"https://api.telegram.org/file/bot{self.telegram_bot_token}/{url}"
+                logger.debug(f"Converting relative path to full URL: {url} -> {full_url}")
+                url = full_url
+
             message_content.append({
                 "type": "image_url",
                 "image_url": {
@@ -60,7 +66,7 @@ class OpenAIClient:
 
         try:
             logger.info(f"Sending request to OpenAI Vision API with {len(image_urls)} images")
-            logger.debug(f"Image URLs: {image_urls}")
+            logger.debug(f"Final image URLs: {[item['image_url']['url'] for item in message_content if 'image_url' in item]}")
 
             # Get messages from session
             messages = session.data.get('messages', [])

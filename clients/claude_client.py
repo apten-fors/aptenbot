@@ -2,11 +2,12 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 import anthropic
 from utils.logging_config import logger
-from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_MODELS, DEFAULT_ANTHROPIC_MODEL
+from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_MODELS, DEFAULT_ANTHROPIC_MODEL, TELEGRAM_BOT_TOKEN
 
 class ClaudeClient:
     def __init__(self):
         self.api_key = ANTHROPIC_API_KEY
+        self.telegram_bot_token = TELEGRAM_BOT_TOKEN
 
         if ANTHROPIC_MODEL not in ANTHROPIC_MODELS:
             logger.warning(f"Model {ANTHROPIC_MODEL} specified in environment variables is not valid. Falling back to {DEFAULT_ANTHROPIC_MODEL}")
@@ -42,6 +43,12 @@ class ClaudeClient:
 
         # Add all image URLs to the content
         for url in image_urls:
+            # Преобразуем относительные пути в полные URL для Telegram API
+            if not url.startswith(('http://', 'https://')):
+                full_url = f"https://api.telegram.org/file/bot{self.telegram_bot_token}/{url}"
+                logger.debug(f"Converting relative path to full URL: {url} -> {full_url}")
+                url = full_url
+                
             message_blocks.append({
                 "type": "image",
                 "source": {
@@ -72,11 +79,14 @@ class ClaudeClient:
 
         try:
             logger.info(f"Sending request to Anthropic API with {len(image_urls)} images")
+            logger.debug(f"Final image URLs: {[block['source']['url'] for block in message_blocks if block['type'] == 'image']}")
+            
             async with self.get_client() as client:
                 response = await client.messages.create(
                     model=self.model,
-                    max_tokens=4000,
-                    messages=claude_messages
+                    max_tokens=4096,
+                    messages=claude_messages,
+                    system=self.system_prompt if hasattr(self, 'system_prompt') else None
                 )
 
             reply = response.content[0].text
