@@ -2,6 +2,7 @@ import time
 from typing import Dict, List, Union, Optional
 from config import SESSION_EXPIRY, OPENAI_MODEL, SYSTEM_PROMPT, OPENAI_MODELS_REASONING, DEFAULT_MODEL_PROVIDER
 from models.models_list import MODELS, DEFAULT_MODEL
+from utils.logging_config import logger
 
 class SessionManager:
     def __init__(self):
@@ -87,11 +88,14 @@ class Session:
 
     def update_model(self, provider_id: str) -> None:
         """Update the provider for this session"""
+        logger.info(f"Updating model provider to: {provider_id}")
         self.data['model_provider'] = provider_id
 
     def get_provider(self) -> str:
         """Get the provider for the current model"""
-        return self.data.get('model_provider', DEFAULT_MODEL_PROVIDER)
+        provider = self.data.get('model_provider', DEFAULT_MODEL_PROVIDER)
+        logger.info(f"Current provider is: {provider}")
+        return provider
 
     def update_image_model(self, model_id: str) -> None:
         """Update the image generation model for this session"""
@@ -108,7 +112,7 @@ class Session:
         # Add user message
         messages.append({"role": "user", "content": message})
 
-        # Используем модель из конфига клиента
+        # Use model from client config
         model_id = openai_client.model
 
         try:
@@ -143,7 +147,7 @@ class Session:
         # Add user message
         messages.append({"role": "user", "content": message})
 
-        # Используем модель из конфига клиента
+        # Use model from client config
         model_id = claude_client.model
 
         try:

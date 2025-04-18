@@ -23,7 +23,6 @@ async def handle_start(message: Message, session_manager):
         "• Tag me in a message to get my attention\n"
         "• Start your message with /ask to ask me a question\n"
         "• Send images with the /ask command in the caption\n\n"
-        "Currently supported models: GPT-4o, Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku"
     )
 
     await message.answer(welcome_message)
@@ -84,16 +83,19 @@ async def handle_number_selection(message: Message, session_manager):
     session = session_manager.get_or_create_session(user_id)
     state = session.get_state()
 
-    # Обработка выбора модели
+    # Model selection handling
     if state == "selecting_model":
         try:
             selected_idx = int(message.text) - 1
             if 0 <= selected_idx < len(MODELS):
                 selected_model = MODELS[selected_idx]
-                # Устанавливаем только провайдер, а не конкретную модель
+                # Set only the provider, not a specific model
                 session.update_model(selected_model['provider'])
+
+                # Logging for debugging
+                provider = selected_model['provider']
                 await message.answer(
-                    f"✅ Provider switched to <b>{selected_model['name']}</b>.",
+                    f"✅ Provider switched to <b>{selected_model['name']}</b>. Provider ID: <code>{provider}</code>",
                     parse_mode="HTML"
                 )
             else:
@@ -103,8 +105,8 @@ async def handle_number_selection(message: Message, session_manager):
         finally:
             # Clear selection state
             session.clear_state()
-    
-    # Обработка выбора модели для изображений
+
+    # Image model selection handling
     elif state == "selecting_img_model":
         try:
             selection = int(message.text)
@@ -216,7 +218,7 @@ async def cmd_insta(message: Message, instaloader_client):
         await message.answer(f"Something went wrong: {path}")
         return
 
-    # Используем FSInputFile вместо открытия файла напрямую
+    # Use FSInputFile instead of directly opening the file
     video_file = FSInputFile(path)
     await message.answer_video(video_file)
 

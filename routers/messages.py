@@ -14,9 +14,14 @@ async def handle_private_message(message: Message, session_manager, openai_clien
     session = session_manager.get_or_create_session(user_id)
     model_provider = session_manager.get_model_provider(user_id)
 
-    if model_provider == "claude":
+    # Add logging for debugging
+    logger.info(f"Using model provider: {model_provider}")
+
+    if model_provider == "anthropic":
+        logger.info("Using Anthropic (Claude) client for processing")
         reply = await claude_client.process_message(session, user_message)
     else:
+        logger.info("Using OpenAI client for processing")
         reply = await openai_client.process_message(session, user_message)
 
     await message.answer(reply)
@@ -45,7 +50,7 @@ async def handle_group_message(message: Message, session_manager, openai_client,
     session = session_manager.get_or_create_session(user_id)
     model_provider = session_manager.get_model_provider(user_id)
 
-    if model_provider == "claude":
+    if model_provider == "anthropic":
         reply = await claude_client.process_message(session, user_message)
     else:
         reply = await openai_client.process_message(session, user_message)
@@ -78,7 +83,7 @@ async def handle_reply(message: Message, session_manager, openai_client, claude_
         model_provider = session_manager.get_model_provider(user_id)
 
         # Process the message with the appropriate AI model
-        if model_provider == "claude":
+        if model_provider == "anthropic":
             reply = await claude_client.process_message(session, message_text)
         else:
             reply = await openai_client.process_message(session, message_text)
