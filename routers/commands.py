@@ -340,17 +340,19 @@ async def handle_reply_number_selection(message: Message, session_manager):
 
     user_id = message.from_user.id
     chat_type = message.chat.type
-    logger.info(f"Handling number reply selection from user {user_id} in chat type: {chat_type}")
 
+    # Get the session and check the state - this is the key check!
     session = session_manager.get_or_create_session(user_id)
     state = session.get_state()
 
-    logger.info(f"Current user state (reply): {state}")
-
-    # If state is not set, ignore numeric messages
-    if not state:
-        logger.info("No state set, ignoring reply numeric message")
+    # If there's no selection state, this is a regular reply to a message,
+    # not an option selection - skip to let the regular reply handler process it
+    if not state or state not in ["selecting_provider", "selecting_specific_model", "selecting_img_model"]:
+        logger.info(f"Reply with number but no selection state: {message.text} - passing to regular handler")
         return
+
+    logger.info(f"Handling number reply selection from user {user_id} in chat type: {chat_type}")
+    logger.info(f"Current user state (reply): {state}")
 
     # Provider selection handling
     if state == "selecting_provider":
