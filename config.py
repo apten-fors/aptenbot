@@ -3,6 +3,7 @@ import os
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "TschatWitscha_bot")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@korobo4ka_xoroni")
 CHANNEL_USER_ID = os.getenv("CHANNEL_USER_ID", "777000")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
