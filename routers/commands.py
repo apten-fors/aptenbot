@@ -326,7 +326,7 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
     await message.answer(response)
 
 # Handler for numeric responses in the form of a reply to a bot message in group chats
-@router.message(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"))
+@router.message.register(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"), flags={"last": True})  # Use last flag to make this handler run last
 async def handle_reply_number_selection(message: Message, session_manager):
     # Check if the response is a reply to a bot message
     if not message.reply_to_message.from_user or message.reply_to_message.from_user.is_bot is False:
@@ -351,6 +351,7 @@ async def handle_reply_number_selection(message: Message, session_manager):
         logger.info(f"Reply with number but no selection state: {message.text} - passing to regular handler")
         return
 
+    # From here down, we know this is a reply to handle selection state
     logger.info(f"Handling number reply selection from user {user_id} in chat type: {chat_type}")
     logger.info(f"Current user state (reply): {state}")
 
@@ -372,6 +373,8 @@ async def handle_reply_number_selection(message: Message, session_manager):
                 f"✅ Provider switched to <b>{provider.capitalize()}</b>.",
                 parse_mode="HTML"
             )
+            # Mark message as handled to prevent other handlers from processing it
+            return True
         finally:
             logger.info("Clearing state after provider selection (reply)")
             session.clear_state()

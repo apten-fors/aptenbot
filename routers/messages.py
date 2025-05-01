@@ -80,12 +80,15 @@ async def handle_group_message(message: Message, session_manager, openai_client,
 
     await message.reply(reply)
 
-@router.message(F.reply_to_message)
+@router.message.register(F.reply_to_message, flags={"first": True})
 async def handle_reply(message: Message, session_manager, openai_client, claude_client):
     user_id = message.from_user.id
     bot_username = (await message.bot.me()).username
     bot_id = (await message.bot.me()).id
     message_text = message.text or ""  # Protection against None
+
+    # Debug logged for troubleshooting
+    logger.info(f"Reply handler activated for text: '{message_text}' from user {user_id}")
 
     # Check if the bot is mentioned in the reply
     bot_mentioned = False
@@ -110,12 +113,17 @@ async def handle_reply(message: Message, session_manager, openai_client, claude_
         message.reply_to_message.from_user.username == bot_username
     )
 
+    # Log reply information
+    logger.info(f"Is reply to bot: {is_reply_to_bot}, Bot mentioned: {bot_mentioned}")
+
     # If this is not a reply to a bot message and the bot is not mentioned - ignore the message
     if not is_reply_to_bot and not bot_mentioned:
+        logger.info("Not a reply to bot and no bot mention - skipping")
         return
 
     # If the chat is a group and there is no mention of the bot or a reply to the bot - ignore the message
     if message.chat.type in ['group', 'supergroup'] and not bot_mentioned and not is_reply_to_bot:
+        logger.info("Group chat with no bot mention or reply - skipping")
         return
 
     # If the bot is mentioned, remove the mention from the message text
