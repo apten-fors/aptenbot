@@ -2,18 +2,12 @@ from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 import anthropic
 from utils.logging_config import logger
-from config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, ANTHROPIC_MODELS, DEFAULT_ANTHROPIC_MODEL, TELEGRAM_BOT_TOKEN
+from config import ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN
 
 class ClaudeClient:
     def __init__(self):
         self.api_key = ANTHROPIC_API_KEY
         self.telegram_bot_token = TELEGRAM_BOT_TOKEN
-
-        if ANTHROPIC_MODEL not in ANTHROPIC_MODELS:
-            logger.warning(f"Model {ANTHROPIC_MODEL} specified in environment variables is not valid. Falling back to {DEFAULT_ANTHROPIC_MODEL}")
-            self.model = DEFAULT_ANTHROPIC_MODEL
-        else:
-            self.model = ANTHROPIC_MODEL
 
     @asynccontextmanager
     async def get_client(self):
@@ -81,9 +75,12 @@ class ClaudeClient:
             logger.info(f"Sending request to Anthropic API with {len(image_urls)} images")
             logger.debug(f"Final image URLs: {[block['source']['url'] for block in message_blocks if block['type'] == 'image']}")
 
+            # Get model from session
+            model_to_use = session.get_model()
+
             async with self.get_client() as client:
                 response = await client.messages.create(
-                    model=self.model,
+                    model=model_to_use,
                     max_tokens=4096,
                     messages=claude_messages,
                     system=self.system_prompt if hasattr(self, 'system_prompt') else None

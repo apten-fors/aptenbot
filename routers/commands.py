@@ -1,8 +1,9 @@
 from aiogram import Router, F
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, BufferedInputFile
 from aiogram.filters import Command
-from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_MODELS, ANTHROPIC_MODELS
+from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_MODELS, ANTHROPIC_MODELS, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS
 import re
+import base64
 from models.models_list import MODELS, DEFAULT_MODEL
 from utils.logging_config import logger
 
@@ -34,14 +35,15 @@ async def handle_help(message: Message):
         "📚 <b>Available Commands</b>\n\n"
         "/start - Introduction to the bot\n"
         "/new - Start a new conversation\n"
-        "/model - Select an AI model\n"
-        "/img - Generate images (DALL-E or Flux)\n"
+        "/provider - Select AI provider (OpenAI or Claude)\n"
+        "/model - Select a specific model from the current provider\n"
+        "/img - Generate images (OpenAI or Flux)\n"
         "/imgmodel - Select default image generation model\n"
         "/help - Show this help message\n\n"
         "<b>Using the bot:</b>\n"
         "• In <b>private chat</b>, just send messages directly\n"
         "• In <b>groups</b>, tag me or use /ask to get my attention\n"
-        "• <b>Image generation</b>: use /img [dalle|flux] your prompt\n"
+        "• <b>Image generation</b>: use /img [openai|flux] your prompt\n"
         "• <b>Group chats</b>: Add /ask when posting images for analysis\n\n"
         "Each user has their own conversation history that persists until you start a new conversation with /new"
     )
@@ -54,27 +56,65 @@ async def handle_new(message: Message, session_manager):
     session_manager.create_new_session(user_id)
     await message.answer("🔄 Starting a new conversation. Previous messages have been cleared.")
 
-@router.message(Command("model"))
-async def handle_model_command(message: Message, session_manager):
+@router.message(Command("provider"))
+async def handle_provider_command(message: Message, session_manager):
     user_id = message.from_user.id
 
     # Create provider options
-    model_options = ""
     current_provider = session_manager.get_model_provider(user_id)
-
-    for i, model in enumerate(MODELS, start=1):
-        current = "✓ " if model['provider'] == current_provider else ""
-        model_options += f"{i}. {current}{model['name']}\n"
+    openai_current = "✓ " if current_provider == "openai" else ""
+    claude_current = "✓ " if current_provider == "anthropic" else ""
 
     response = (
         "🤖 <b>Select an AI provider:</b>\n\n"
-        f"{model_options}\n"
+        f"1. {openai_current}OpenAI\n"
+        f"2. {claude_current}Claude (Anthropic)\n\n"
         "To select a provider, reply with its number (e.g., '1')"
     )
 
     # Create or update model selection state
     session = session_manager.get_or_create_session(user_id)
-    session.update_state("selecting_model")
+    session.update_state("selecting_provider")
+
+    await message.answer(response, parse_mode="HTML")
+
+@router.message(Command("model"))
+async def handle_model_command(message: Message, session_manager):
+    user_id = message.from_user.id
+    session = session_manager.get_or_create_session(user_id)
+    provider = session.get_provider()
+
+    # Get allowed models based on provider
+    if provider == "openai":
+        allowed_models = OPENAI_ALLOWED_MODELS
+        default_model = OPENAI_MODEL
+    else:  # anthropic
+        allowed_models = ANTHROPIC_ALLOWED_MODELS
+        default_model = ANTHROPIC_MODEL
+
+    # Use allowed models or fallback to default if empty
+    if not allowed_models:
+        model_options = f"Using default model: {default_model}"
+        await message.answer(model_options)
+        return
+
+    # Get current model
+    current_model = session.get_model()
+
+    # Create model options
+    model_options = ""
+    for i, model_id in enumerate(allowed_models, start=1):
+        current = "✓ " if model_id == current_model else ""
+        model_options += f"{i}. {current}{model_id}\n"
+
+    response = (
+        f"🤖 <b>Select a {provider.capitalize()} model:</b>\n\n"
+        f"{model_options}\n"
+        "To select a model, reply with its number (e.g., '1')"
+    )
+
+    # Create or update model selection state
+    session.update_state("selecting_specific_model")
 
     await message.answer(response, parse_mode="HTML")
 
@@ -84,19 +124,42 @@ async def handle_number_selection(message: Message, session_manager):
     session = session_manager.get_or_create_session(user_id)
     state = session.get_state()
 
-    # Model selection handling
-    if state == "selecting_model":
+    # Provider selection handling
+    if state == "selecting_provider":
         try:
-            selected_idx = int(message.text) - 1
-            if 0 <= selected_idx < len(MODELS):
-                selected_model = MODELS[selected_idx]
-                # Set only the provider, not a specific model
-                session.update_model(selected_model['provider'])
+            selection = int(message.text)
+            if selection == 1:
+                provider = "openai"
+            elif selection == 2:
+                provider = "anthropic"
+            else:
+                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                return
 
-                # Logging for debugging
-                provider = selected_model['provider']
+            session.update_model(provider)
+            await message.answer(
+                f"✅ Provider switched to <b>{provider.capitalize()}</b>.",
+                parse_mode="HTML"
+            )
+        finally:
+            session.clear_state()
+
+    # Specific model selection handling
+    elif state == "selecting_specific_model":
+        try:
+            provider = session.get_provider()
+            if provider == "openai":
+                allowed_models = OPENAI_ALLOWED_MODELS
+            else:  # anthropic
+                allowed_models = ANTHROPIC_ALLOWED_MODELS
+
+            selected_idx = int(message.text) - 1
+            if 0 <= selected_idx < len(allowed_models):
+                selected_model = allowed_models[selected_idx]
+                session.update_specific_model(selected_model)
+
                 await message.answer(
-                    f"✅ Provider switched to <b>{selected_model['name']}</b>. Provider ID: <code>{provider}</code>",
+                    f"✅ Model switched to <b>{selected_model}</b>",
                     parse_mode="HTML"
                 )
             else:
@@ -112,7 +175,7 @@ async def handle_number_selection(message: Message, session_manager):
         try:
             selection = int(message.text)
             if selection == 1:
-                provider = "dalle"
+                provider = "openai"
             elif selection == 2:
                 provider = "flux"
             else:
@@ -133,7 +196,7 @@ async def handle_imgmodel_command(message: Message, session_manager):
     user_id = message.from_user.id
 
     args = message.text.split()
-    if len(args) > 1 and args[1] in ["dalle", "flux"]:
+    if len(args) > 1 and args[1] in ["openai", "flux"]:
         provider = args[1]
         session = session_manager.get_or_create_session(user_id)
         session.update_image_model(provider)
@@ -142,16 +205,16 @@ async def handle_imgmodel_command(message: Message, session_manager):
 
     # Display options if no valid provider specified
     session = session_manager.get_or_create_session(user_id)
-    current_img_provider = session.get_image_model() if hasattr(session, "get_image_model") else "dalle"
+    current_img_provider = session.get_image_model() if hasattr(session, "get_image_model") else "openai"
 
-    dalle_current = "✓ " if current_img_provider == "dalle" else ""
+    openai_current = "✓ " if current_img_provider == "openai" else ""
     flux_current = "✓ " if current_img_provider == "flux" else ""
 
     response = (
         "🖼️ <b>Select default image generation model:</b>\n\n"
-        f"1. {dalle_current}DALL-E (OpenAI)\n"
+        f"1. {openai_current}GPT-Image (OpenAI)\n"
         f"2. {flux_current}Flux\n\n"
-        "Reply with a number or use /imgmodel dalle or /imgmodel flux"
+        "Reply with a number or use /imgmodel openai or /imgmodel flux"
     )
 
     # Set selection state
@@ -164,12 +227,12 @@ async def handle_img_command(message: Message, openai_client, flux_client, sessi
     user_id = message.from_user.id
     args = message.text.split()
 
-    # Get user's default provider or use dalle as fallback
+    # Get user's default provider or use openai as fallback
     session = session_manager.get_or_create_session(user_id)
-    default_provider = session.get_image_model() if hasattr(session, "get_image_model") else "dalle"
+    default_provider = session.get_image_model() if hasattr(session, "get_image_model") else "openai"
 
     # Check if a provider is specified
-    if len(args) > 1 and args[1] in ["dalle", "flux"]:
+    if len(args) > 1 and args[1] in ["openai", "flux"]:
         provider = args[1]
         prompt = " ".join(args[2:])
     else:
@@ -177,23 +240,26 @@ async def handle_img_command(message: Message, openai_client, flux_client, sessi
         prompt = " ".join(args[1:])
 
     if not prompt:
-        await message.answer(f"Usage: /img [dalle|flux] <prompt>\nCurrent default: {default_provider.upper()}")
+        await message.answer(f"Usage: /img [openai|flux] <prompt>\nCurrent default: {default_provider.upper()}")
         return
 
     await message.answer(f"Generating image using {provider.upper()}...")
 
     try:
-        if provider == "dalle":
+        if provider == "openai":
             async with openai_client.get_client() as client:
                 response = await client.images.generate(
-                    model="dall-e-3",
+                    model="gpt-image-1",
                     prompt=prompt,
                     size="1024x1024",
                     quality="standard",
                     n=1,
+                    response_format="b64_json"
                 )
-            image_url = response.data[0].url
-            await message.answer_photo(image_url)
+            # Decode the base64 image data
+            image_bytes = base64.b64decode(response.data[0].b64_json)
+            # Send the image using BufferedInputFile
+            await message.answer_photo(BufferedInputFile(image_bytes, filename="image.png"))
         else:  # flux
             image_url = await flux_client.generate_image(prompt)
             await message.answer_photo(image_url)
