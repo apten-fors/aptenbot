@@ -28,14 +28,37 @@ async def handle_private_message(message: Message, session_manager, openai_clien
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.text)
 async def handle_group_message(message: Message, session_manager, openai_client, claude_client):
+    # Проверяем, является ли сообщение командой /ask (такие обрабатываются отдельно)
+    if message.text.startswith("/ask"):
+        return
+
     bot_username = (await message.bot.me()).username
-    if f"@{bot_username}" not in message.text:
+    bot_id = (await message.bot.me()).id
+    message_text = message.text
+    logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
+
+    # Проверяем, упомянут ли бот в сообщении
+    bot_mentioned = False
+
+    # Проверка на @username упоминание
+    if f"@{bot_username}" in message_text:
+        bot_mentioned = True
+
+    # Проверка на entity упоминания
+    if not bot_mentioned and message.entities:
+        for entity in message.entities:
+            if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
+                bot_mentioned = True
+                break
+            elif entity.type == "text_mention" and entity.user and entity.user.id == bot_id:
+                bot_mentioned = True
+                break
+
+    # Если бот не упомянут, игнорируем сообщение
+    if not bot_mentioned:
         return
 
     user_id = message.from_user.id
-
-    message_text = message.text
-    logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
 
     # Remove the bot mention from the message
     user_message = message_text.replace(f"@{bot_username}", "").strip()
@@ -61,31 +84,54 @@ async def handle_group_message(message: Message, session_manager, openai_client,
 async def handle_reply(message: Message, session_manager, openai_client, claude_client):
     user_id = message.from_user.id
     bot_username = (await message.bot.me()).username
-    message_text = message.text
+    bot_id = (await message.bot.me()).id
+    message_text = message.text or ""  # Защита от None
 
     # Check if the bot is mentioned in the reply
-    bot_mentioned = f"@{bot_username}" in message_text
+    bot_mentioned = False
 
-    # If this is a group chat and the bot is not mentioned, ignore the message
-    if message.chat.type in ['group', 'supergroup'] and not bot_mentioned:
+    # Проверка на @username упоминание
+    if f"@{bot_username}" in message_text:
+        bot_mentioned = True
+
+    # Проверка на entity упоминания
+    if not bot_mentioned and message.entities:
+        for entity in message.entities:
+            if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
+                bot_mentioned = True
+                break
+            elif entity.type == "text_mention" and entity.user and entity.user.id == bot_id:
+                bot_mentioned = True
+                break
+
+    # Проверяем, является ли это ответом на сообщение бота
+    is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user and (
+        message.reply_to_message.from_user.id == bot_id or
+        message.reply_to_message.from_user.username == bot_username
+    )
+
+    # Если это не ответ боту и бот не упомянут - игнорируем сообщение
+    if not is_reply_to_bot and not bot_mentioned:
         return
 
-    # If it's a reply to the bot's message, process it
-    if message.reply_to_message and message.reply_to_message.from_user.username == bot_username:
-        # If the bot is mentioned, remove the mention from the message text
-        if bot_mentioned:
-            message_text = message_text.replace(f"@{bot_username}", "").strip()
+    # Если чат групповой и нет ни упоминания бота, ни ответа боту - игнорируем
+    if message.chat.type in ['group', 'supergroup'] and not bot_mentioned and not is_reply_to_bot:
+        return
 
-        logger.info(f"Processing reply to bot: {message_text}")
+    # If the bot is mentioned, remove the mention from the message text
+    if bot_mentioned:
+        message_text = message_text.replace(f"@{bot_username}", "").strip()
 
-        # Get or create a session for this user
-        session = session_manager.get_or_create_session(user_id)
-        model_provider = session_manager.get_model_provider(user_id)
+    logger.info(f"Processing reply or mention: {message_text}")
 
-        # Process the message with the appropriate AI model
-        if model_provider == "anthropic":
-            reply = await claude_client.process_message(session, message_text)
-        else:
-            reply = await openai_client.process_message(session, message_text)
+    # Get or create a session for this user
+    session = session_manager.get_or_create_session(user_id)
+    model_provider = session_manager.get_model_provider(user_id)
 
-        await message.answer(reply)
+    # Process the message with the appropriate AI model
+    if model_provider == "anthropic":
+        reply = await claude_client.process_message(session, message_text)
+    else:
+        reply = await openai_client.process_message(session, message_text)
+
+    await message.answer(reply)
