@@ -1,6 +1,6 @@
 import time
 from typing import Dict, List, Union, Optional
-from config import SESSION_EXPIRY, OPENAI_MODEL, SYSTEM_PROMPT, OPENAI_MODELS_REASONING, DEFAULT_MODEL_PROVIDER
+from config import SESSION_EXPIRY, OPENAI_MODEL, ANTHROPIC_MODEL, SYSTEM_PROMPT, OPENAI_MODELS_REASONING, DEFAULT_MODEL_PROVIDER
 from models.models_list import MODELS, DEFAULT_MODEL
 from utils.logging_config import logger
 
@@ -15,7 +15,8 @@ class SessionManager:
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': current_time,
                 'model_provider': DEFAULT_MODEL_PROVIDER,
-                'image_model': 'dalle',  # Default image model
+                'model': OPENAI_MODEL if DEFAULT_MODEL_PROVIDER == 'openai' else ANTHROPIC_MODEL,
+                'image_model': 'openai',  # Default image model
                 'state': None
             }
         else:
@@ -26,12 +27,15 @@ class SessionManager:
     def create_new_session(self, user_id: int) -> None:
         # Preserve model preferences when creating a new session
         model_provider = self.sessions.get(user_id, {}).get('model_provider', DEFAULT_MODEL_PROVIDER)
-        image_model = self.sessions.get(user_id, {}).get('image_model', 'dalle')
+        model = self.sessions.get(user_id, {}).get('model',
+                                                  OPENAI_MODEL if model_provider == 'openai' else ANTHROPIC_MODEL)
+        image_model = self.sessions.get(user_id, {}).get('image_model', 'openai')
 
         self.sessions[user_id] = {
             'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
             'last_activity': time.time(),
             'model_provider': model_provider,
+            'model': model,
             'image_model': image_model,
             'state': None
         }
@@ -46,12 +50,18 @@ class SessionManager:
         """Set the model provider for a user session"""
         if user_id in self.sessions:
             self.sessions[user_id]['model_provider'] = provider
+            # Set default model for the provider
+            if provider == 'openai':
+                self.sessions[user_id]['model'] = OPENAI_MODEL
+            else:  # anthropic
+                self.sessions[user_id]['model'] = ANTHROPIC_MODEL
         else:
             self.sessions[user_id] = {
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': time.time(),
                 'model_provider': provider,
-                'image_model': 'dalle',
+                'model': OPENAI_MODEL if provider == 'openai' else ANTHROPIC_MODEL,
+                'image_model': 'openai',
                 'state': None
             }
 
@@ -90,6 +100,16 @@ class Session:
         """Update the provider for this session"""
         logger.info(f"Updating model provider to: {provider_id}")
         self.data['model_provider'] = provider_id
+        # Set default model for the provider
+        if provider_id == 'openai':
+            self.data['model'] = OPENAI_MODEL
+        else:  # anthropic
+            self.data['model'] = ANTHROPIC_MODEL
+
+    def update_specific_model(self, model_id: str) -> None:
+        """Update the specific model for this session"""
+        logger.info(f"Updating specific model to: {model_id}")
+        self.data['model'] = model_id
 
     def get_provider(self) -> str:
         """Get the provider for the current model"""
@@ -97,13 +117,19 @@ class Session:
         logger.info(f"Current provider is: {provider}")
         return provider
 
+    def get_model(self) -> str:
+        """Get the current specific model"""
+        provider = self.get_provider()
+        default_model = OPENAI_MODEL if provider == 'openai' else ANTHROPIC_MODEL
+        return self.data.get('model', default_model)
+
     def update_image_model(self, model_id: str) -> None:
         """Update the image generation model for this session"""
         self.data['image_model'] = model_id
 
     def get_image_model(self) -> str:
         """Get the current image generation model"""
-        return self.data.get('image_model', 'dalle')
+        return self.data.get('image_model', 'openai')
 
     async def process_openai_message(self, message: str, openai_client):
         """Process a message using OpenAI"""
@@ -112,9 +138,9 @@ class Session:
         # Add user message
         messages.append({"role": "user", "content": message})
 
-        # Use model from client config
-        model_id = openai_client.model
-
+        # Use model from session or client config
+        model_id = self.get_model()
+        
         try:
             # Call OpenAI API using the get_client method
             async with openai_client.get_client() as client:
@@ -147,8 +173,8 @@ class Session:
         # Add user message
         messages.append({"role": "user", "content": message})
 
-        # Use model from client config
-        model_id = claude_client.model
+        # Use model from session or client config
+        model_id = self.get_model()
 
         try:
             # Convert messages to Claude format
