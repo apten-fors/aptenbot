@@ -104,3 +104,29 @@ class OpenAIClient:
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return "An unexpected error occurred."
+
+    async def generate_image(self, prompt: str):
+        """Generate an image using OpenAI's DALL-E model.
+
+        Args:
+            prompt (str): The text prompt for image generation
+
+        Returns:
+            bytes: The generated image as bytes
+        """
+        logger.info(f"Generating image with OpenAI: {prompt}")
+        try:
+            async with self.get_client() as client:
+                response = await client.images.generate(
+                    model="gpt-image-1",
+                    prompt=prompt,
+                    size="1024x1024",
+                    quality="medium",
+                    n=1
+                )
+            # Return the base64 encoded image
+            import base64
+            return base64.b64decode(response.data[0].b64_json)
+        except Exception as e:
+            logger.error(f"Error generating image with OpenAI: {e}")
+            raise

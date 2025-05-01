@@ -247,18 +247,7 @@ async def handle_img_command(message: Message, openai_client, flux_client, sessi
 
     try:
         if provider == "openai":
-            async with openai_client.get_client() as client:
-                response = await client.images.generate(
-                    model="gpt-image-1",
-                    prompt=prompt,
-                    size="1024x1024",
-                    quality="standard",
-                    n=1,
-                    response_format="b64_json"
-                )
-            # Decode the base64 image data
-            image_bytes = base64.b64decode(response.data[0].b64_json)
-            # Send the image using BufferedInputFile
+            image_bytes = await openai_client.generate_image(prompt)
             await message.answer_photo(BufferedInputFile(image_bytes, filename="image.png"))
         else:  # flux
             image_url = await flux_client.generate_image(prompt)
