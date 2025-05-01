@@ -116,11 +116,15 @@ async def handle_model_command(message: Message, session_manager):
 
     await message.answer(response, parse_mode="HTML")
 
-@router.message(F.text.regexp(r"^[1-9]\d*$") & F.chat.type == "private")
+@router.message(F.text.regexp(r"^[1-9]\d*$"))
 async def handle_number_selection(message: Message, session_manager):
     user_id = message.from_user.id
     session = session_manager.get_or_create_session(user_id)
     state = session.get_state()
+
+    # If state is not set, ignore numeric messages
+    if not state:
+        return
 
     # Provider selection handling
     if state == "selecting_provider":
