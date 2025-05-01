@@ -37,7 +37,7 @@ class ClaudeClient:
 
         # Add all image URLs to the content
         for url in image_urls:
-            # Преобразуем относительные пути в полные URL для Telegram API
+            # Convert relative paths to full URLs for Telegram API
             if not url.startswith(('http://', 'https://')):
                 full_url = f"https://api.telegram.org/file/bot{self.telegram_bot_token}/{url}"
                 logger.debug(f"Converting relative path to full URL: {url} -> {full_url}")

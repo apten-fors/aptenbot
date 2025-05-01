@@ -13,6 +13,7 @@ from clients.instaloader import InstaloaderClient
 from routers import commands_router, messages_router, media_router
 from middlewares.subscription import SubscriptionMiddleware
 from middlewares.logging import LoggingMiddleware
+from middlewares.dependencies import DependencyMiddleware
 from utils.logging_config import logger
 
 # Initialize colorama for colored terminal output
@@ -36,7 +37,7 @@ async def main():
     flux_client = FluxClient()
     instaloader_client = InstaloaderClient()
 
-    # Pass dependencies via dp['...']
+    # Register dependencies
     dp["session_manager"] = session_manager
     dp["subscription_manager"] = subscription_manager
     dp["openai_client"] = openai_client
@@ -48,18 +49,15 @@ async def main():
     dp.message.middleware(LoggingMiddleware())
     dp.message.middleware(SubscriptionMiddleware(subscription_manager))
 
-    # Register dependencies directly to routers
-    commands_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
-                                                                               "openai_client": openai_client,
-                                                                               "claude_client": claude_client,
-                                                                               "flux_client": flux_client,
-                                                                               "instaloader_client": instaloader_client}))
-    messages_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
-                                                                              "openai_client": openai_client,
-                                                                              "claude_client": claude_client}))
-    media_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
-                                                                           "openai_client": openai_client,
-                                                                           "claude_client": claude_client}))
+    # DependencyMiddleware - register dependencies
+    dependency_middleware = DependencyMiddleware(
+        session_manager=session_manager,
+        openai_client=openai_client,
+        claude_client=claude_client,
+        flux_client=flux_client,
+        instaloader_client=instaloader_client
+    )
+    dp.message.middleware(dependency_middleware)
 
     # Routers
     dp.include_router(commands_router)
