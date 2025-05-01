@@ -57,6 +57,10 @@ async def handle_new(message: Message, session_manager):
 @router.message(Command("provider"))
 async def handle_provider_command(message: Message, session_manager):
     user_id = message.from_user.id
+    chat_id = message.chat.id
+    chat_type = message.chat.type
+
+    logger.info(f"Provider command from user {user_id} in chat {chat_id} (type: {chat_type})")
 
     # Create provider options
     current_provider = session_manager.get_model_provider(user_id)
@@ -72,13 +76,20 @@ async def handle_provider_command(message: Message, session_manager):
 
     # Create or update model selection state
     session = session_manager.get_or_create_session(user_id)
+    logger.info(f"Setting state 'selecting_provider' for user {user_id}")
     session.update_state("selecting_provider")
 
     await message.answer(response, parse_mode="HTML")
+    logger.info("Provider options sent")
 
 @router.message(Command("model"))
 async def handle_model_command(message: Message, session_manager):
     user_id = message.from_user.id
+    chat_id = message.chat.id
+    chat_type = message.chat.type
+
+    logger.info(f"Model command from user {user_id} in chat {chat_id} (type: {chat_type})")
+
     session = session_manager.get_or_create_session(user_id)
     provider = session.get_provider()
 
@@ -119,15 +130,22 @@ async def handle_model_command(message: Message, session_manager):
 @router.message(F.text.regexp(r"^[1-9]\d*$"))
 async def handle_number_selection(message: Message, session_manager):
     user_id = message.from_user.id
+    chat_type = message.chat.type
+    logger.info(f"Handling number selection from user {user_id} in chat type: {chat_type}")
+
     session = session_manager.get_or_create_session(user_id)
     state = session.get_state()
 
+    logger.info(f"Current user state: {state}")
+
     # If state is not set, ignore numeric messages
     if not state:
+        logger.info("No state set, ignoring numeric message")
         return
 
     # Provider selection handling
     if state == "selecting_provider":
+        logger.info(f"Processing provider selection: {message.text}")
         try:
             selection = int(message.text)
             if selection == 1:
@@ -144,6 +162,7 @@ async def handle_number_selection(message: Message, session_manager):
                 parse_mode="HTML"
             )
         finally:
+            logger.info("Clearing state after provider selection")
             session.clear_state()
 
     # Specific model selection handling

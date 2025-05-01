@@ -86,14 +86,18 @@ class Session:
 
     def update_state(self, state: str) -> None:
         """Update the state of the session"""
+        logger.info(f"Updating session state to: {state}")
         self.data['state'] = state
 
     def get_state(self) -> Optional[str]:
         """Get the current state of the session"""
-        return self.data.get('state')
+        state = self.data.get('state')
+        logger.info(f"Getting session state: {state}")
+        return state
 
     def clear_state(self) -> None:
         """Clear the state of the session"""
+        logger.info(f"Clearing session state from: {self.data.get('state')}")
         self.data['state'] = None
 
     def update_model(self, provider_id: str) -> None:
