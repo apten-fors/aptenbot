@@ -1,6 +1,6 @@
 import time
 from typing import Dict, List, Union, Optional
-from config import SESSION_EXPIRY, OPENAI_MODEL, ANTHROPIC_MODEL, SYSTEM_PROMPT, OPENAI_MODELS_REASONING, DEFAULT_MODEL_PROVIDER
+from config import SESSION_EXPIRY, OPENAI_MODEL, ANTHROPIC_MODEL, SYSTEM_PROMPT, DEFAULT_MODEL_PROVIDER
 from models.models_list import MODELS, DEFAULT_MODEL
 from utils.logging_config import logger
 
@@ -140,7 +140,7 @@ class Session:
 
         # Use model from session or client config
         model_id = self.get_model()
-        
+
         try:
             # Call OpenAI API using the get_client method
             async with openai_client.get_client() as client:

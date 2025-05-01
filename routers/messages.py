@@ -28,7 +28,7 @@ async def handle_private_message(message: Message, session_manager, openai_clien
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.text)
 async def handle_group_message(message: Message, session_manager, openai_client, claude_client):
-    # Проверяем, является ли сообщение командой /ask (такие обрабатываются отдельно)
+    # Check if the message is a command /ask (such messages are processed separately)
     if message.text.startswith("/ask"):
         return
 
@@ -37,14 +37,14 @@ async def handle_group_message(message: Message, session_manager, openai_client,
     message_text = message.text
     logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
 
-    # Проверяем, упомянут ли бот в сообщении
+    # Check if the bot is mentioned in the message
     bot_mentioned = False
 
-    # Проверка на @username упоминание
+    # Check for @username mention
     if f"@{bot_username}" in message_text:
         bot_mentioned = True
 
-    # Проверка на entity упоминания
+    # Check for entity mention
     if not bot_mentioned and message.entities:
         for entity in message.entities:
             if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
@@ -54,7 +54,7 @@ async def handle_group_message(message: Message, session_manager, openai_client,
                 bot_mentioned = True
                 break
 
-    # Если бот не упомянут, игнорируем сообщение
+    # If the bot is not mentioned, ignore the message
     if not bot_mentioned:
         return
 
@@ -85,16 +85,16 @@ async def handle_reply(message: Message, session_manager, openai_client, claude_
     user_id = message.from_user.id
     bot_username = (await message.bot.me()).username
     bot_id = (await message.bot.me()).id
-    message_text = message.text or ""  # Защита от None
+    message_text = message.text or ""  # Protection against None
 
     # Check if the bot is mentioned in the reply
     bot_mentioned = False
 
-    # Проверка на @username упоминание
+    # Check for @username mention
     if f"@{bot_username}" in message_text:
         bot_mentioned = True
 
-    # Проверка на entity упоминания
+    # Check for entity mention
     if not bot_mentioned and message.entities:
         for entity in message.entities:
             if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
@@ -104,17 +104,17 @@ async def handle_reply(message: Message, session_manager, openai_client, claude_
                 bot_mentioned = True
                 break
 
-    # Проверяем, является ли это ответом на сообщение бота
+    # Check if this is a reply to a bot message
     is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user and (
         message.reply_to_message.from_user.id == bot_id or
         message.reply_to_message.from_user.username == bot_username
     )
 
-    # Если это не ответ боту и бот не упомянут - игнорируем сообщение
+    # If this is not a reply to a bot message and the bot is not mentioned - ignore the message
     if not is_reply_to_bot and not bot_mentioned:
         return
 
-    # Если чат групповой и нет ни упоминания бота, ни ответа боту - игнорируем
+    # If the chat is a group and there is no mention of the bot or a reply to the bot - ignore the message
     if message.chat.type in ['group', 'supergroup'] and not bot_mentioned and not is_reply_to_bot:
         return
 

@@ -1,10 +1,8 @@
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile, BufferedInputFile
 from aiogram.filters import Command
-from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_MODELS, ANTHROPIC_MODELS, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS
+from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS
 import re
-import base64
-from models.models_list import MODELS, DEFAULT_MODEL
 from utils.logging_config import logger
 
 router = Router()
@@ -257,7 +255,6 @@ async def handle_img_command(message: Message, openai_client, flux_client, sessi
 
 @router.message(Command("insta"))
 async def cmd_insta(message: Message, instaloader_client):
-    user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.answer("Usage: /insta <link to instagram video>")

@@ -1,12 +1,12 @@
 from config import DEFAULT_MODEL_PROVIDER
 
-# Упрощенный список для выбора только провайдера, а не конкретных моделей
+# Simplified list for selecting only the provider, not specific models
 MODELS = [
     {"id": "openai", "name": "OpenAI", "provider": "openai"},
     {"id": "anthropic", "name": "Claude (Anthropic)", "provider": "anthropic"},
 ]
 
-# Дефолтный провайдер из конфига
+# Default model from config
 DEFAULT_MODEL = {
     "id": DEFAULT_MODEL_PROVIDER,
     "name": "OpenAI" if DEFAULT_MODEL_PROVIDER == "openai" else "Claude (Anthropic)",
