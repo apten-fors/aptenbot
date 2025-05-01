@@ -324,3 +324,99 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
         response = await session.process_openai_message(question, openai_client)
 
     await message.answer(response)
+
+# Handler for numeric responses in the form of a reply to a bot message in group chats
+@router.message(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"))
+async def handle_reply_number_selection(message: Message, session_manager):
+    # Check if the response is a reply to a bot message
+    if not message.reply_to_message.from_user or message.reply_to_message.from_user.is_bot is False:
+        return
+
+    bot_username = (await message.bot.me()).username
+    replied_username = message.reply_to_message.from_user.username
+
+    if replied_username != bot_username:
+        return
+
+    user_id = message.from_user.id
+    chat_type = message.chat.type
+    logger.info(f"Handling number reply selection from user {user_id} in chat type: {chat_type}")
+
+    session = session_manager.get_or_create_session(user_id)
+    state = session.get_state()
+
+    logger.info(f"Current user state (reply): {state}")
+
+    # If state is not set, ignore numeric messages
+    if not state:
+        logger.info("No state set, ignoring reply numeric message")
+        return
+
+    # Provider selection handling
+    if state == "selecting_provider":
+        logger.info(f"Processing provider selection (reply): {message.text}")
+        try:
+            selection = int(message.text)
+            if selection == 1:
+                provider = "openai"
+            elif selection == 2:
+                provider = "anthropic"
+            else:
+                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                return
+
+            session.update_model(provider)
+            await message.answer(
+                f"✅ Provider switched to <b>{provider.capitalize()}</b>.",
+                parse_mode="HTML"
+            )
+        finally:
+            logger.info("Clearing state after provider selection (reply)")
+            session.clear_state()
+
+    # Specific model selection handling
+    elif state == "selecting_specific_model":
+        try:
+            provider = session.get_provider()
+            if provider == "openai":
+                allowed_models = OPENAI_ALLOWED_MODELS
+            else:  # anthropic
+                allowed_models = ANTHROPIC_ALLOWED_MODELS
+
+            selected_idx = int(message.text) - 1
+            if 0 <= selected_idx < len(allowed_models):
+                selected_model = allowed_models[selected_idx]
+                session.update_specific_model(selected_model)
+
+                await message.answer(
+                    f"✅ Model switched to <b>{selected_model}</b>",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.answer("❌ Invalid selection. Please choose a valid number from the list.")
+        except ValueError:
+            await message.answer("❌ Please enter a valid number.")
+        finally:
+            # Clear selection state
+            session.clear_state()
+
+    # Image model selection handling
+    elif state == "selecting_img_model":
+        try:
+            selection = int(message.text)
+            if selection == 1:
+                provider = "openai"
+            elif selection == 2:
+                provider = "flux"
+            else:
+                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                return
+
+            session.update_image_model(provider)
+            await message.answer(
+                f"✅ Default image model set to <b>{provider.upper()}</b>",
+                parse_mode="HTML"
+            )
+        finally:
+            # Clear selection state
+            session.clear_state()
