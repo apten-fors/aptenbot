@@ -80,7 +80,7 @@ async def handle_group_message(message: Message, session_manager, openai_client,
 
     await message.reply(reply)
 
-@router.message.register(F.reply_to_message, flags={"first": True})
+@router.message(F.reply_to_message)
 async def handle_reply(message: Message, session_manager, openai_client, claude_client):
     user_id = message.from_user.id
     bot_username = (await message.bot.me()).username

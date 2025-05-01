@@ -326,7 +326,7 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
     await message.answer(response)
 
 # Handler for numeric responses in the form of a reply to a bot message in group chats
-@router.message.register(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"), flags={"last": True})  # Use last flag to make this handler run last
+@router.message(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"))
 async def handle_reply_number_selection(message: Message, session_manager):
     # Check if the response is a reply to a bot message
     if not message.reply_to_message.from_user or message.reply_to_message.from_user.is_bot is False:
