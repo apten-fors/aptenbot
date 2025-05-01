@@ -48,6 +48,19 @@ async def main():
     dp.message.middleware(LoggingMiddleware())
     dp.message.middleware(SubscriptionMiddleware(subscription_manager))
 
+    # Register dependencies directly to routers
+    commands_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
+                                                                               "openai_client": openai_client,
+                                                                               "claude_client": claude_client,
+                                                                               "flux_client": flux_client,
+                                                                               "instaloader_client": instaloader_client}))
+    messages_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
+                                                                              "openai_client": openai_client,
+                                                                              "claude_client": claude_client}))
+    media_router.message.outer_middleware(lambda handler, event, data: data.update({"session_manager": session_manager,
+                                                                           "openai_client": openai_client,
+                                                                           "claude_client": claude_client}))
+
     # Routers
     dp.include_router(commands_router)
     dp.include_router(messages_router)
