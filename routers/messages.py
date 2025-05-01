@@ -28,118 +28,91 @@ async def handle_private_message(message: Message, session_manager, openai_clien
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.text)
 async def handle_group_message(message: Message, session_manager, openai_client, claude_client):
-    # Check if the message is a command /ask (such messages are processed separately)
-    if message.text.startswith("/ask"):
-        return
-
     bot_username = (await message.bot.me()).username
     bot_id = (await message.bot.me()).id
-    message_text = message.text
-    logger.debug(f"Received group message: '{message_text}', checking for mention of @{bot_username}")
+    message_text = message.text or "" # Ensure message_text is not None
 
-    # Check if the bot is mentioned in the message
+    # Check if the message is a direct command /ask (processed separately)
+    if message_text.startswith("/ask"):
+        logger.debug("Ignoring message starting with /ask in group message handler.")
+        return
+
+    # --- Check if the bot should process this message ---
     bot_mentioned = False
+    is_reply_to_bot = False
 
     # Check for @username mention
     if f"@{bot_username}" in message_text:
         bot_mentioned = True
+        logger.debug("Bot mentioned by username.")
 
     # Check for entity mention
     if not bot_mentioned and message.entities:
         for entity in message.entities:
             if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
                 bot_mentioned = True
+                logger.debug("Bot mentioned by entity.")
                 break
             elif entity.type == "text_mention" and entity.user and entity.user.id == bot_id:
                 bot_mentioned = True
-                break
-
-    # If the bot is not mentioned, ignore the message
-    if not bot_mentioned:
-        return
-
-    user_id = message.from_user.id
-
-    # Remove the bot mention from the message
-    user_message = message_text.replace(f"@{bot_username}", "").strip()
-
-    # If this is a reply to another message, include that message's text as context
-    if message.reply_to_message and message.reply_to_message.text:
-        replied_text = message.reply_to_message.text
-        user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
-
-    logger.info(f"Processing mention with message: {user_message}")
-
-    session = session_manager.get_or_create_session(user_id)
-    model_provider = session_manager.get_model_provider(user_id)
-
-    if model_provider == "anthropic":
-        reply = await claude_client.process_message(session, user_message)
-    else:
-        reply = await openai_client.process_message(session, user_message)
-
-    await message.reply(reply)
-
-@router.message(F.reply_to_message)
-async def handle_reply(message: Message, session_manager, openai_client, claude_client):
-    user_id = message.from_user.id
-    bot_username = (await message.bot.me()).username
-    bot_id = (await message.bot.me()).id
-    message_text = message.text or ""  # Protection against None
-
-    # Debug logged for troubleshooting
-    logger.info(f"Reply handler activated for text: '{message_text}' from user {user_id}")
-
-    # Check if the bot is mentioned in the reply
-    bot_mentioned = False
-
-    # Check for @username mention
-    if f"@{bot_username}" in message_text:
-        bot_mentioned = True
-
-    # Check for entity mention
-    if not bot_mentioned and message.entities:
-        for entity in message.entities:
-            if entity.type == "mention" and message_text[entity.offset:entity.offset+entity.length] == f"@{bot_username}":
-                bot_mentioned = True
-                break
-            elif entity.type == "text_mention" and entity.user and entity.user.id == bot_id:
-                bot_mentioned = True
+                logger.debug("Bot mentioned by text_mention entity.")
                 break
 
     # Check if this is a reply to a bot message
-    is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user and (
+    if message.reply_to_message and message.reply_to_message.from_user and (
         message.reply_to_message.from_user.id == bot_id or
         message.reply_to_message.from_user.username == bot_username
-    )
+    ):
+        is_reply_to_bot = True
+        logger.debug("Message is a reply to the bot.")
 
-    # Log reply information
-    logger.info(f"Is reply to bot: {is_reply_to_bot}, Bot mentioned: {bot_mentioned}")
-
-    # If this is not a reply to a bot message and the bot is not mentioned - ignore the message
-    if not is_reply_to_bot and not bot_mentioned:
-        logger.info("Not a reply to bot and no bot mention - skipping")
+    # If the bot is neither mentioned nor replied to, ignore the message
+    if not bot_mentioned and not is_reply_to_bot:
+        logger.debug("Ignoring group message: No mention and not a reply to the bot.")
         return
+    # --- End Check ---
 
-    # If the chat is a group and there is no mention of the bot or a reply to the bot - ignore the message
-    if message.chat.type in ['group', 'supergroup'] and not bot_mentioned and not is_reply_to_bot:
-        logger.info("Group chat with no bot mention or reply - skipping")
-        return
+    user_id = message.from_user.id
+    user_message = message_text # Start with the full text
 
-    # If the bot is mentioned, remove the mention from the message text
+    # If the bot was mentioned, remove the mention for processing
     if bot_mentioned:
-        message_text = message_text.replace(f"@{bot_username}", "").strip()
+        user_message = user_message.replace(f"@{bot_username}", "").strip()
+        logger.debug(f"Removed mention, message to process: '{user_message}'")
 
-    logger.info(f"Processing reply or mention: {message_text}")
+    # If this is a reply to the bot, add context from the replied message
+    # Prepend context only if it's a reply and the message text isn't empty
+    if is_reply_to_bot and message.reply_to_message.text and user_message:
+        replied_text = message.reply_to_message.text
+        user_message = f"Context: {replied_text}\n\nQuestion: {user_message}"
+        logger.debug(f"Added context from reply. Message to process: '{user_message}'")
+    elif is_reply_to_bot and not user_message:
+        # If it's a reply but the reply text itself is empty (e.g., just a sticker reply)
+        # We might still want to process it if the original message had text
+        if message.reply_to_message.text:
+             user_message = f"Context: {message.reply_to_message.text}\n\nQuestion: [User replied without text] What do you think about this?"
+             logger.debug("Reply had no text, created default question with context.")
+        else: # Reply to a message without text (e.g. photo) - might need specific handling?
+             logger.debug("Reply to a non-text message without text in reply - ignoring for now.")
+             return # Or maybe process based on original message type?
 
-    # Get or create a session for this user
+    if not user_message:
+        logger.debug("After processing mentions/replies, message is empty. Ignoring.")
+        return
+
+    logger.info(f"Processing group message/reply: '{user_message}'")
+
     session = session_manager.get_or_create_session(user_id)
     model_provider = session_manager.get_model_provider(user_id)
 
-    # Process the message with the appropriate AI model
-    if model_provider == "anthropic":
-        reply = await claude_client.process_message(session, message_text)
-    else:
-        reply = await openai_client.process_message(session, message_text)
+    try:
+        if model_provider == "anthropic":
+            reply = await claude_client.process_message(session, user_message)
+        else:
+            reply = await openai_client.process_message(session, user_message)
 
-    await message.answer(reply)
+        await message.reply(reply) # Use reply to keep context in group chat
+        logger.info("Successfully processed and replied in group.")
+    except Exception as e:
+        logger.error(f"Error processing group message via AI client: {e}", exc_info=True)
+        await message.reply("Sorry, I encountered an error trying to process that.")
