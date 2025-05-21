@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aiogram.types import Message, User, Chat, ChatMemberOwner, ChatMemberMember
+from aiogram.types import Message, User, Chat, ChatMemberOwner, ChatMemberMember, MessageEntity
 
 # Assuming routers are in 'project_root/routers/'
 # Adjust import paths if your project structure is different
@@ -11,6 +11,7 @@ from config import CHANNEL_ID # For any CHANNEL_ID related logic if needed, thou
 
 TEST_BOT_USERNAME = "TestBot"
 TEST_BOT_ID = 987654321
+MOCKED_AI_RESPONSE = "Mocked AI response"
 
 @pytest.fixture
 def mock_bot_instance():
@@ -18,6 +19,8 @@ def mock_bot_instance():
     bot_user = User(id=TEST_BOT_ID, is_bot=True, first_name=TEST_BOT_USERNAME, username=TEST_BOT_USERNAME)
     bot_instance = AsyncMock()
     bot_instance.me = AsyncMock(return_value=bot_user)
+    # Mock get_chat_member here as it's used by handle_ask_command
+    bot_instance.get_chat_member = AsyncMock(return_value=ChatMemberMember(user=User(id=12345, is_bot=False, first_name="Regular User"), status="member"))
     return bot_instance
 
 @pytest.fixture
@@ -30,11 +33,11 @@ def mock_session_manager():
 @pytest.fixture
 def mock_openai_client():
     client = AsyncMock()
-    client.process_message = AsyncMock(return_value="Mocked AI response")
+    client.process_message = AsyncMock(return_value=MOCKED_AI_RESPONSE)
     return client
 
 @pytest.fixture
-def mock_claude_client(): # Though not used in /ask by default, good to have
+def mock_claude_client(): 
     client = AsyncMock()
     client.process_message = AsyncMock(return_value="Mocked Claude response")
     return client
@@ -47,24 +50,30 @@ def group_chat():
 def regular_user():
     return User(id=12345, is_bot=False, first_name="Test User")
 
+@pytest.fixture
+def another_user():
+    return User(id=54321, is_bot=False, first_name="Another User")
+
 # --- Tests for routers.messages.handle_group_message ---
 
 @pytest.mark.asyncio
-async def test_scenario_2_1_bot_mention_in_group_ignored(
+async def test_direct_mention_in_group_processed(
     mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user
 ):
-    """Scenario 2.1: Bot Mention in Group - No Response from handle_group_message"""
+    """Test: Direct @bot_username mention in a group message IS processed."""
     message_text = f"@{TEST_BOT_USERNAME} hello there!"
+    # Simulate entity for mention
+    entities = [MessageEntity(type="mention", offset=0, length=len(f"@{TEST_BOT_USERNAME}"))]
     message = Message(
         message_id=100,
         chat=group_chat,
         from_user=regular_user,
         text=message_text,
+        entities=entities,
         bot=mock_bot_instance
     )
     message.reply = AsyncMock()
 
-    # Directly call handle_group_message
     await handle_group_message(
         message, 
         session_manager=mock_session_manager, 
@@ -72,25 +81,30 @@ async def test_scenario_2_1_bot_mention_in_group_ignored(
         claude_client=mock_claude_client
     )
 
-    # Assert that reply was NOT called because handle_group_message should ignore non-/ask
-    message.reply.assert_not_called()
-    # Assert AI client was NOT called by this handler
-    mock_openai_client.process_message.assert_not_called()
+    message.reply.assert_called_once_with(MOCKED_AI_RESPONSE)
+    mock_openai_client.process_message.assert_called_once()
+    # Check that the actual message passed to AI is "hello there!"
+    args, _ = mock_openai_client.process_message.call_args
+    assert args[1] == "hello there!"
     mock_claude_client.process_message.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_scenario_2_2_bot_reply_in_group_ignored(
+async def test_reply_to_bot_in_group_processed(
     mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user
 ):
-    """Scenario 2.2: Bot Reply in Group - No Response from handle_group_message"""
+    """Test: Replying to the bot's own message IS processed."""
+    bot_user_for_reply = User(id=TEST_BOT_ID, is_bot=True, first_name=TEST_BOT_USERNAME, username=TEST_BOT_USERNAME)
+    bot_previous_message_text = "I am a bot."
     bot_previous_message = Message(
-        message_id=100, chat=group_chat, from_user=User(id=TEST_BOT_ID, is_bot=True, first_name=TEST_BOT_USERNAME, username=TEST_BOT_USERNAME), text="I am a bot."
+        message_id=100, chat=group_chat, from_user=bot_user_for_reply, text=bot_previous_message_text
     )
+    
+    user_reply_text = "Oh really?"
     message = Message(
         message_id=101,
         chat=group_chat,
         from_user=regular_user,
-        text="Oh really?",
+        text=user_reply_text,
         reply_to_message=bot_previous_message,
         bot=mock_bot_instance
     )
@@ -103,17 +117,63 @@ async def test_scenario_2_2_bot_reply_in_group_ignored(
         claude_client=mock_claude_client
     )
 
-    message.reply.assert_not_called()
-    mock_openai_client.process_message.assert_not_called()
+    message.reply.assert_called_once_with(MOCKED_AI_RESPONSE)
+    mock_openai_client.process_message.assert_called_once()
+    # Check context formatting
+    args, _ = mock_openai_client.process_message.call_args
+    expected_processed_message = f"Context from my previous message: \"{bot_previous_message_text}\"\n\nUser's question/reply: \"{user_reply_text}\""
+    assert args[1] == expected_processed_message
+    mock_claude_client.process_message.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_mention_in_reply_to_another_user_processed(
+    mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user, another_user
+):
+    """Test: Bot mention in a reply to another user's message IS processed."""
+    original_poster_message_text = "This is User A's original message."
+    original_poster_message = Message(
+        message_id=200, chat=group_chat, from_user=another_user, text=original_poster_message_text
+    )
+
+    reply_text_with_mention = f"@{TEST_BOT_USERNAME} what do you think about this?"
+    # Simulate entity for mention
+    entities = [MessageEntity(type="mention", offset=0, length=len(f"@{TEST_BOT_USERNAME}"))]
+    message = Message(
+        message_id=201,
+        chat=group_chat,
+        from_user=regular_user, # User B is replying
+        text=reply_text_with_mention,
+        reply_to_message=original_poster_message, # Replying to User A's message
+        entities=entities,
+        bot=mock_bot_instance
+    )
+    message.reply = AsyncMock()
+
+    await handle_group_message(
+        message,
+        session_manager=mock_session_manager,
+        openai_client=mock_openai_client,
+        claude_client=mock_claude_client
+    )
+
+    message.reply.assert_called_once_with(MOCKED_AI_RESPONSE)
+    mock_openai_client.process_message.assert_called_once()
+    # The context from another user's message is NOT added in the current implementation,
+    # only the mention is stripped. If context from the replied-to message (from another user)
+    # was desired, the handle_group_message logic would need to change.
+    # Current logic: bot_mentioned=True, is_reply_to_bot=False.
+    # So, it strips the mention and processes: "what do you think about this?"
+    args, _ = mock_openai_client.process_message.call_args
+    assert args[1] == "what do you think about this?"
     mock_claude_client.process_message.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_general_group_message_ignored(
     mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user
 ):
-    """Test that a general group message (no mention, no reply, not /ask) is ignored."""
+    """Test: A general group message (no mention, no reply, not /ask) is IGNORED."""
     message = Message(
-        message_id=102,
+        message_id=300,
         chat=group_chat,
         from_user=regular_user,
         text="Just a random message.",
@@ -132,102 +192,80 @@ async def test_general_group_message_ignored(
     mock_openai_client.process_message.assert_not_called()
     mock_claude_client.process_message.assert_not_called()
 
-# --- Test for routers.commands.handle_ask_command in group context ---
-# This implicitly tests that handle_group_message ignores /ask,
-# and handle_ask_command processes it.
-
 @pytest.mark.asyncio
-async def test_scenario_2_3_ask_command_in_group_processed_by_command_handler(
+async def test_ask_command_in_group_ignored_by_message_handler(
     mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user
 ):
-    """Scenario 2.3: /ask command in Group - Response Expected from handle_ask_command"""
-    
-    # Part 1: Verify handle_group_message ignores /ask
+    """Test: /ask command in Group is IGNORED by handle_group_message."""
     ask_message_text_group = "/ask How are you in a group?"
     group_ask_message = Message(
-        message_id=200,
-        chat=group_chat, # Group context
+        message_id=400,
+        chat=group_chat, 
         from_user=regular_user,
         text=ask_message_text_group,
         bot=mock_bot_instance,
-        entities=[{'type': 'bot_command', 'offset': 0, 'length': 4}] # Simulate command entity
+        entities=[MessageEntity(type='bot_command', offset=0, length=4)] 
     )
     group_ask_message.reply = AsyncMock()
-    group_ask_message.answer = AsyncMock() # For commands, .answer might also be used by some frameworks/handlers
-
-    # Call handle_group_message and ensure it does nothing with /ask
+    
     await handle_group_message(
         group_ask_message, 
         session_manager=mock_session_manager, 
         openai_client=mock_openai_client, 
         claude_client=mock_claude_client
     )
-    group_ask_message.reply.assert_not_called() # handle_group_message should not reply
-    mock_openai_client.process_message.assert_not_called() # handle_group_message should not call AI
+    group_ask_message.reply.assert_not_called() 
+    mock_openai_client.process_message.assert_not_called() 
     mock_claude_client.process_message.assert_not_called()
 
-    # Reset mocks for AI clients before calling the command handler
+@pytest.mark.asyncio
+async def test_ask_command_in_group_processed_by_command_handler(
+    mock_bot_instance, mock_session_manager, mock_openai_client, mock_claude_client, group_chat, regular_user
+):
+    """Test: /ask command in Group IS processed by handle_ask_command."""
+    ask_message_text_group = "/ask How are you in a group?"
+    group_ask_message = Message(
+        message_id=401, # Different ID from previous test
+        chat=group_chat,
+        from_user=regular_user,
+        text=ask_message_text_group,
+        bot=mock_bot_instance,
+        entities=[MessageEntity(type='bot_command', offset=0, length=4)]
+    )
+    group_ask_message.reply = AsyncMock()
+    
+    # Reset relevant mocks that might have been called if this message object was reused by mistake
     mock_openai_client.process_message.reset_mock()
     mock_claude_client.process_message.reset_mock()
-    mock_openai_client.process_message.return_value = "AI reply to /ask in group"
+    mock_openai_client.process_message.return_value = "AI reply to /ask in group" # Specific return for this test
 
-
-    # Part 2: Verify handle_ask_command processes /ask in a group
-    # We need to mock get_chat_member for admin check in handle_ask_command
-    # For this test, assume user is NOT an admin to simplify, or mock admin status if needed for full coverage
-    mock_bot_instance.get_chat_member = AsyncMock(return_value=ChatMemberMember(user=regular_user, status="member"))
-
-    # Create a new state mock for the command handler
     mock_state = AsyncMock()
-    mock_state.get_state = AsyncMock(return_value=None) # Default to no state
+    mock_state.get_state = AsyncMock(return_value=None)
     mock_state.set_state = AsyncMock()
     mock_state.update_data = AsyncMock()
     mock_state.clear = AsyncMock()
 
     await handle_ask_command(
-        group_ask_message, # Use the same message object
+        group_ask_message, 
         session_manager=mock_session_manager,
         openai_client=mock_openai_client,
-        claude_client=mock_claude_client, # Pass claude_client as well
-        state=mock_state, # Pass the mock_state
-        bot=mock_bot_instance # Pass the bot instance
+        claude_client=mock_claude_client, 
+        state=mock_state, 
+        bot=mock_bot_instance 
     )
 
-    # Assert AI client (OpenAI by default in session_manager mock) was called by handle_ask_command
     mock_openai_client.process_message.assert_called_once()
-    # Assert a reply was sent by handle_ask_command
+    args, _ = mock_openai_client.process_message.call_args
+    # handle_ask_command strips the "/ask " part
+    assert args[1] == "How are you in a group?" 
     group_ask_message.reply.assert_called_once_with("AI reply to /ask in group")
 
-
-# To run these tests:
-# pytest tests/routers/test_group_messages.py
-# Ensure that the routers and config are importable (PYTHONPATH setup).
-# The structure of these tests assumes that handle_group_message is registered for general text
-# and handle_ask_command is registered for /ask commands, and the dispatcher routes correctly.
-# These tests directly call the handlers to verify their internal logic given specific inputs.
-# Testing the dispatcher itself would require more complex Aiogram-specific testing utilities.
-#
-# Note on CHANNEL_ID: The original task description for handle_group_message mentioned CHANNEL_ID,
-# but the implementation change for handle_group_message was to ignore all non-/ask messages.
-# So CHANNEL_ID logic is primarily in SubscriptionMiddleware, not directly in handle_group_message's new logic.
-# The handle_ask_command might have its own considerations for CHANNEL_ID if it needs to behave
-# differently when the bot is used in its own channel's linked group, but that's outside current scope.
-# For now, CHANNEL_ID is imported but not actively used in these specific router tests.
-#
-# For `handle_ask_command`, it includes admin checks using `message.bot.get_chat_member`.
-# This is mocked in `test_scenario_2_3_ask_command_in_group_processed_by_command_handler`.
-# If `handle_ask_command` had more complex logic based on admin status, further test cases would be needed.
-# The provided test assumes a non-admin user for simplicity of the AI call path.
-#
-# Also, `handle_ask_command` uses `FSMContext` (state). A mock for this is added.
-# The `bot` argument has been added to `handle_ask_command` call as it's used internally.
-#
-# The `claude_client` is passed to `handle_ask_command` for completeness, matching its signature.
-#
-# Added `entities` to the mock message for `/ask` command as Aiogram relies on this for command detection.
-# `message.bot` is now properly `mock_bot_instance` in `handle_ask_command` call.
-# `message.answer` is also mocked for `group_ask_message` as command handlers might use it.
-# `mock_bot_instance.get_chat_member` is added to simulate the admin check.
-# `claude_client` argument added to `handle_ask_command` call.
-# `state` argument added to `handle_ask_command` call.
-# `bot` argument added to `handle_ask_command` call.
+# Note: The `mock_bot_instance` fixture now includes a default mock for `get_chat_member`
+# as it's used by `handle_ask_command`. This simplifies individual tests.
+# MessageEntity objects are now used for simulating entities like mentions and commands.
+# Assertions for what exactly is passed to `process_message` are added for clarity.
+# Renamed tests from "*_ignored" to "*_processed" where behavior changed.
+# Test for `/ask` command now split into two:
+#   - `test_ask_command_in_group_ignored_by_message_handler`
+#   - `test_ask_command_in_group_processed_by_command_handler`
+# to clearly distinguish the responsibilities.
