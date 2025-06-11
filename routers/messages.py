@@ -61,7 +61,7 @@ async def handle_group_message(message: Message, session_manager, openai_client,
                 bot_mentioned = True
                 logger.debug(f"Bot mentioned by text_mention entity for user ID: {bot_id}")
                 break
-    
+
     # Check if this is a reply to a bot message
     if message.reply_to_message and message.reply_to_message.from_user and \
        (message.reply_to_message.from_user.id == bot_id): # Simpler check using only bot_id
@@ -89,7 +89,7 @@ async def handle_group_message(message: Message, session_manager, openai_client,
     # If this is a reply to the bot, add context from the replied message
     if is_reply_to_bot and message.reply_to_message:
         replied_text = message.reply_to_message.text or "" # Ensure replied_text is not None
-        
+
         if user_message: # If there's new text in the reply
             user_message = f"Context from my previous message: \"{replied_text}\"\n\nUser's question/reply: \"{user_message}\""
         elif replied_text: # If reply is empty but original message had text (e.g. user replies with sticker to bot text)

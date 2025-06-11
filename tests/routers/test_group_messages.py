@@ -37,7 +37,7 @@ def mock_openai_client():
     return client
 
 @pytest.fixture
-def mock_claude_client(): 
+def mock_claude_client():
     client = AsyncMock()
     client.process_message = AsyncMock(return_value="Mocked Claude response")
     return client
@@ -75,9 +75,9 @@ async def test_direct_mention_in_group_processed(
     message.reply = AsyncMock()
 
     await handle_group_message(
-        message, 
-        session_manager=mock_session_manager, 
-        openai_client=mock_openai_client, 
+        message,
+        session_manager=mock_session_manager,
+        openai_client=mock_openai_client,
         claude_client=mock_claude_client
     )
 
@@ -98,7 +98,7 @@ async def test_reply_to_bot_in_group_processed(
     bot_previous_message = Message(
         message_id=100, chat=group_chat, from_user=bot_user_for_reply, text=bot_previous_message_text
     )
-    
+
     user_reply_text = "Oh really?"
     message = Message(
         message_id=101,
@@ -111,9 +111,9 @@ async def test_reply_to_bot_in_group_processed(
     message.reply = AsyncMock()
 
     await handle_group_message(
-        message, 
-        session_manager=mock_session_manager, 
-        openai_client=mock_openai_client, 
+        message,
+        session_manager=mock_session_manager,
+        openai_client=mock_openai_client,
         claude_client=mock_claude_client
     )
 
@@ -182,9 +182,9 @@ async def test_general_group_message_ignored(
     message.reply = AsyncMock()
 
     await handle_group_message(
-        message, 
-        session_manager=mock_session_manager, 
-        openai_client=mock_openai_client, 
+        message,
+        session_manager=mock_session_manager,
+        openai_client=mock_openai_client,
         claude_client=mock_claude_client
     )
 
@@ -200,22 +200,22 @@ async def test_ask_command_in_group_ignored_by_message_handler(
     ask_message_text_group = "/ask How are you in a group?"
     group_ask_message = Message(
         message_id=400,
-        chat=group_chat, 
+        chat=group_chat,
         from_user=regular_user,
         text=ask_message_text_group,
         bot=mock_bot_instance,
-        entities=[MessageEntity(type='bot_command', offset=0, length=4)] 
+        entities=[MessageEntity(type='bot_command', offset=0, length=4)]
     )
     group_ask_message.reply = AsyncMock()
-    
+
     await handle_group_message(
-        group_ask_message, 
-        session_manager=mock_session_manager, 
-        openai_client=mock_openai_client, 
+        group_ask_message,
+        session_manager=mock_session_manager,
+        openai_client=mock_openai_client,
         claude_client=mock_claude_client
     )
-    group_ask_message.reply.assert_not_called() 
-    mock_openai_client.process_message.assert_not_called() 
+    group_ask_message.reply.assert_not_called()
+    mock_openai_client.process_message.assert_not_called()
     mock_claude_client.process_message.assert_not_called()
 
 @pytest.mark.asyncio
@@ -233,7 +233,7 @@ async def test_ask_command_in_group_processed_by_command_handler(
         entities=[MessageEntity(type='bot_command', offset=0, length=4)]
     )
     group_ask_message.reply = AsyncMock()
-    
+
     # Reset relevant mocks that might have been called if this message object was reused by mistake
     mock_openai_client.process_message.reset_mock()
     mock_claude_client.process_message.reset_mock()
@@ -246,18 +246,18 @@ async def test_ask_command_in_group_processed_by_command_handler(
     mock_state.clear = AsyncMock()
 
     await handle_ask_command(
-        group_ask_message, 
+        group_ask_message,
         session_manager=mock_session_manager,
         openai_client=mock_openai_client,
-        claude_client=mock_claude_client, 
-        state=mock_state, 
-        bot=mock_bot_instance 
+        claude_client=mock_claude_client,
+        state=mock_state,
+        bot=mock_bot_instance
     )
 
     mock_openai_client.process_message.assert_called_once()
     args, _ = mock_openai_client.process_message.call_args
     # handle_ask_command strips the "/ask " part
-    assert args[1] == "How are you in a group?" 
+    assert args[1] == "How are you in a group?"
     group_ask_message.reply.assert_called_once_with("AI reply to /ask in group")
 
 # Note: The `mock_bot_instance` fixture now includes a default mock for `get_chat_member`
