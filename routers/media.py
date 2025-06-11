@@ -53,7 +53,7 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
                             session = session_manager.get_or_create_session(user_id)
                             model_provider = session_manager.get_model_provider(user_id)
 
-                            if model_provider == "claude":
+                            if model_provider == "anthropic":
                                 reply = await claude_client.process_message_with_image(session, caption, file_urls)
                             else:
                                 reply = await openai_client.process_message_with_image(session, caption, file_urls)
@@ -73,7 +73,7 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
         session = session_manager.get_or_create_session(user_id)
         model_provider = session_manager.get_model_provider(user_id)
 
-        if model_provider == "claude":
+        if model_provider == "anthropic":
             reply = await claude_client.process_message_with_image(session, caption, [file_url])
         else:
             reply = await openai_client.process_message_with_image(session, caption, [file_url])
@@ -93,7 +93,7 @@ async def handle_group_photo_ask(message: Message, session_manager, openai_clien
         session = session_manager.get_or_create_session(user_id)
         model_provider = session_manager.get_model_provider(user_id)
 
-        if model_provider == "claude":
+        if model_provider == "anthropic":
             reply = await claude_client.process_message_with_image(session, caption, [file_url])
         else:
             reply = await openai_client.process_message_with_image(session, caption, [file_url])
@@ -147,7 +147,7 @@ async def handle_group_photo_ask(message: Message, session_manager, openai_clien
                         session = session_manager.get_or_create_session(user_id)
                         model_provider = session_manager.get_model_provider(user_id)
 
-                        if model_provider == "claude":
+                        if model_provider == "anthropic":
                             reply = await claude_client.process_message_with_image(session, caption, file_urls)
                         else:
                             reply = await openai_client.process_message_with_image(session, caption, file_urls)
