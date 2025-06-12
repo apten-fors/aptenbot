@@ -28,12 +28,9 @@ class InstaloaderClient:
 
             # Try to download
             logger.info(f"Downloading video to {filename}")
-            download_success = self.loader.download_post(post, target=shortcode)
+            self.loader.download_post(post, target=shortcode)
 
-            if download_success:
-                return True, filename
-
-            # If download returned False, check if file exists
+            # Verify if file exists after attempting download
             if os.path.exists(filename):
                 return True, filename
             else:
