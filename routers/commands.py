@@ -304,12 +304,13 @@ async def cmd_insta(message: Message, instaloader_client):
     except Exception as e:
         logger.error(f"Error deleting message: {e}")
 
-@router.message(Command("ask"))
+@router.message(Command("ask"), ~F.photo)
 async def handle_ask_command(message: Message, session_manager, openai_client, claude_client):
     user_id = message.from_user.id
 
     # Extract the actual question (remove the /ask part)
-    question = message.text.replace("/ask", "", 1).strip()
+    question_source = message.text or message.caption or ""
+    question = question_source.replace("/ask", "", 1).strip()
     if not question:
         await message.answer("Please provide a question after /ask")
         return
