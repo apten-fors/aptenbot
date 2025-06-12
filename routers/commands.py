@@ -309,7 +309,14 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
     user_id = message.from_user.id
 
     # Extract the actual question (remove the /ask part)
-    question = message.text.replace("/ask", "", 1).strip()
+    # Command filter also triggers on captions for media messages. In that case
+    # we want the media-specific handlers to process the request so we simply
+    # skip here.
+    if message.photo:
+        return
+
+    question_source = message.text or message.caption or ""
+    question = question_source.replace("/ask", "", 1).strip()
     if not question:
         await message.answer("Please provide a question after /ask")
         return

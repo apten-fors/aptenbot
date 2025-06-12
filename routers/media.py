@@ -41,6 +41,9 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
                                     caption = msg.caption
                                     break
 
+                            if caption and caption.startswith("/ask"):
+                                caption = caption.replace("/ask", "", 1).strip()
+
                             if not caption:
                                 caption = "What is in this image?"
 
@@ -67,6 +70,8 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
     else:
         # Single image handling
         caption = message.caption or "What is in this image?"
+        if caption.startswith("/ask"):
+            caption = caption.replace("/ask", "", 1).strip()
         file = await message.bot.get_file(message.photo[-1].file_id)
         file_url = file.file_path
 
