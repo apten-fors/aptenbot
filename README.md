@@ -110,11 +110,13 @@ All configuration is done through environment variables:
 
 - `/start` - Start the bot and get help
 - `/help` - Display available commands
-- `/ask <question>` - Ask a question in group chats
-- `/img <prompt>` - Generate an image from text
+- `/new` - Start a new conversation
+- `/provider` - Select AI provider (OpenAI or Claude)
+- `/model` - Choose a specific model from the current provider
+- `/imgmodel` - Set the default image generation model
+- `/img [openai|flux] <prompt>` - Generate an image from text
 - `/insta <url>` - Download Instagram video
-- `/reset` - Reset conversation history
-- `/set provider <name>` - Switch AI provider (openai/claude)
+- `/ask <question>` - Ask a question in group chats
 
 ## License
 
