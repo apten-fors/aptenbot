@@ -2,12 +2,17 @@ import os
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROK_API_KEY = os.getenv("GROK_API_KEY")
+GROK_BASE_URL = os.getenv("GROK_BASE_URL", "https://api.groq.com/openai/v1")
 TELEGRAM_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "TschatWitscha_bot")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@korobo4ka_xoroni")
 CHANNEL_USER_ID = os.getenv("CHANNEL_USER_ID", "777000")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-pro")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-1")
 FLUX_MODEL = os.getenv("FLUX_MODEL", "flux-pro-1.1")
 BFL_API_KEY = os.getenv("BFL_API_KEY")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -21,14 +26,22 @@ OPENAI_MODELS_REASONING = ['o1', 'o1-pro', 'o3-mini', 'o1-mini']
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
 ANTHROPIC_MODELS = ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022']
 DEFAULT_ANTHROPIC_MODEL = "claude-3-5-haiku-20241022"
+GEMINI_MODELS = ['gemini-pro', 'gemini-pro-vision']
+DEFAULT_GEMINI_MODEL = 'gemini-pro'
+GROK_MODELS = ['grok-1']
+DEFAULT_GROK_MODEL = 'grok-1'
 
-# Default model provider to use (openai or claude)
+# Default model provider to use (openai, anthropic, gemini or grok)
 DEFAULT_MODEL_PROVIDER = os.getenv("DEFAULT_MODEL_PROVIDER", "openai")
 
 # Get allowed models from environment variables or default to all models
 OPENAI_ALLOWED_MODELS = os.getenv("OPENAI_ALLOWED_MODELS", "").split(",") if os.getenv("OPENAI_ALLOWED_MODELS") else OPENAI_MODELS
 ANTHROPIC_ALLOWED_MODELS = os.getenv("ANTHROPIC_ALLOWED_MODELS", "").split(",") if os.getenv("ANTHROPIC_ALLOWED_MODELS") else ANTHROPIC_MODELS
+GEMINI_ALLOWED_MODELS = os.getenv("GEMINI_ALLOWED_MODELS", "").split(",") if os.getenv("GEMINI_ALLOWED_MODELS") else GEMINI_MODELS
+GROK_ALLOWED_MODELS = os.getenv("GROK_ALLOWED_MODELS", "").split(",") if os.getenv("GROK_ALLOWED_MODELS") else GROK_MODELS
 
 # Clean up empty strings if trailing comma in env var
 OPENAI_ALLOWED_MODELS = [model.strip() for model in OPENAI_ALLOWED_MODELS if model.strip()]
 ANTHROPIC_ALLOWED_MODELS = [model.strip() for model in ANTHROPIC_ALLOWED_MODELS if model.strip()]
+GEMINI_ALLOWED_MODELS = [model.strip() for model in GEMINI_ALLOWED_MODELS if model.strip()]
+GROK_ALLOWED_MODELS = [model.strip() for model in GROK_ALLOWED_MODELS if model.strip()]

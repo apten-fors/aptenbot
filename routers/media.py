@@ -8,7 +8,7 @@ media_groups = {}
 media_group_locks = {}
 
 @router.message(F.chat.type == "private", F.photo)
-async def handle_private_photo(message: Message, session_manager, openai_client, claude_client):
+async def handle_private_photo(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
     user_id = message.from_user.id
 
     # Check if message is part of a media group
@@ -58,6 +58,10 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
 
                             if model_provider == "anthropic":
                                 reply = await claude_client.process_message_with_image(session, caption, file_urls)
+                            elif model_provider == "gemini":
+                                reply = await gemini_client.process_message_with_image(session, caption, file_urls)
+                            elif model_provider == "grok":
+                                reply = await grok_client.process_message_with_image(session, caption, file_urls)
                             else:
                                 reply = await openai_client.process_message_with_image(session, caption, file_urls)
 
@@ -80,13 +84,17 @@ async def handle_private_photo(message: Message, session_manager, openai_client,
 
         if model_provider == "anthropic":
             reply = await claude_client.process_message_with_image(session, caption, [file_url])
+        elif model_provider == "gemini":
+            reply = await gemini_client.process_message_with_image(session, caption, [file_url])
+        elif model_provider == "grok":
+            reply = await grok_client.process_message_with_image(session, caption, [file_url])
         else:
             reply = await openai_client.process_message_with_image(session, caption, [file_url])
 
         await message.answer(reply)
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.photo & F.caption.startswith("/ask"))
-async def handle_group_photo_ask(message: Message, session_manager, openai_client, claude_client):
+async def handle_group_photo_ask(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
     user_id = message.from_user.id
 
     # If it's a single photo with /ask command
@@ -100,6 +108,10 @@ async def handle_group_photo_ask(message: Message, session_manager, openai_clien
 
         if model_provider == "anthropic":
             reply = await claude_client.process_message_with_image(session, caption, [file_url])
+        elif model_provider == "gemini":
+            reply = await gemini_client.process_message_with_image(session, caption, [file_url])
+        elif model_provider == "grok":
+            reply = await grok_client.process_message_with_image(session, caption, [file_url])
         else:
             reply = await openai_client.process_message_with_image(session, caption, [file_url])
 
@@ -154,6 +166,10 @@ async def handle_group_photo_ask(message: Message, session_manager, openai_clien
 
                         if model_provider == "anthropic":
                             reply = await claude_client.process_message_with_image(session, caption, file_urls)
+                        elif model_provider == "gemini":
+                            reply = await gemini_client.process_message_with_image(session, caption, file_urls)
+                        elif model_provider == "grok":
+                            reply = await grok_client.process_message_with_image(session, caption, file_urls)
                         else:
                             reply = await openai_client.process_message_with_image(session, caption, file_urls)
 

@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from aiogram.types import Message, User, Chat, ChatMemberOwner, ChatMemberMember, MessageEntity
 
 # Assuming routers are in 'project_root/routers/'

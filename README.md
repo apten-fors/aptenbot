@@ -1,15 +1,15 @@
 # Telegram AI Bot
 
-A Telegram bot that integrates with OpenAI and Claude AI models to provide intelligent responses, supporting both text and image processing.
+A Telegram bot that integrates with OpenAI, Claude, Google Gemini and Grok AI models to provide intelligent responses, supporting both text and image processing.
 
 ## Features
 
-- Text conversations with OpenAI and Claude models
+- Text conversations with OpenAI, Claude, Gemini and Grok models
 - Image processing and analysis
 - Media group handling
 - Instagram video downloading
 - Group chat support with mention handling
-- Model switching between OpenAI and Claude
+- Model switching between OpenAI, Claude, Gemini and Grok
 
 ## Structure
 
@@ -99,9 +99,13 @@ All configuration is done through environment variables:
 | `TG_BOT_TOKEN` | Your Telegram bot token | *Required* |
 | `OPENAI_API_KEY` | Your OpenAI API key | *Required for OpenAI* |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key | *Required for Claude* |
+| `GEMINI_API_KEY` | Your Google Gemini API key | *Required for Gemini* |
+| `GROK_API_KEY` | Your Grok API key | *Required for Grok* |
 | `OPENAI_MODEL` | OpenAI model to use | gpt-4o-mini |
 | `ANTHROPIC_MODEL` | Claude model to use | claude-3-5-haiku-20241022 |
-| `DEFAULT_MODEL_PROVIDER` | Default AI provider (openai or claude) | openai |
+| `GEMINI_MODEL` | Gemini model to use | gemini-pro |
+| `GROK_MODEL` | Grok model to use | grok-1 |
+| `DEFAULT_MODEL_PROVIDER` | Default AI provider (openai, anthropic, gemini or grok) | openai |
 | `BFL_API_KEY` | Black Forest Labs API key | *Optional* |
 | `CHANNEL_ID` | Channel ID for subscription check | @korobo4ka_xoroni |
 | `LOG_LEVEL` | Logging level | INFO |
@@ -111,7 +115,7 @@ All configuration is done through environment variables:
 - `/start` - Start the bot and get help
 - `/help` - Display available commands
 - `/new` - Start a new conversation
-- `/provider` - Select AI provider (OpenAI or Claude)
+ - `/provider` - Select AI provider (OpenAI, Claude, Gemini or Grok)
 - `/model` - Choose a specific model from the current provider
 - `/imgmodel` - Set the default image generation model
 - `/img [openai|flux] <prompt>` - Generate an image from text

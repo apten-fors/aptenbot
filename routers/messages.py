@@ -5,7 +5,7 @@ from utils.logging_config import logger
 router = Router()
 
 @router.message(F.chat.type == "private", F.text)
-async def handle_private_message(message: Message, session_manager, openai_client, claude_client):
+async def handle_private_message(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
     user_id = message.from_user.id
 
     user_message = message.text
@@ -20,6 +20,12 @@ async def handle_private_message(message: Message, session_manager, openai_clien
     if model_provider == "anthropic":
         logger.info("Using Anthropic (Claude) client for processing")
         reply = await claude_client.process_message(session, user_message)
+    elif model_provider == "gemini":
+        logger.info("Using Gemini client for processing")
+        reply = await gemini_client.process_message(session, user_message)
+    elif model_provider == "grok":
+        logger.info("Using Grok client for processing")
+        reply = await grok_client.process_message(session, user_message)
     else:
         logger.info("Using OpenAI client for processing")
         reply = await openai_client.process_message(session, user_message)
@@ -27,7 +33,7 @@ async def handle_private_message(message: Message, session_manager, openai_clien
     await message.answer(reply)
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.text)
-async def handle_group_message(message: Message, session_manager, openai_client, claude_client):
+async def handle_group_message(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
     bot_username = (await message.bot.me()).username
     bot_id = (await message.bot.me()).id
     message_text = message.text or "" # Ensure message_text is not None
@@ -116,6 +122,12 @@ async def handle_group_message(message: Message, session_manager, openai_client,
         if model_provider == "anthropic":
             logger.info(f"Using Anthropic (Claude) client for user {user_id}")
             reply = await claude_client.process_message(session, user_message)
+        elif model_provider == "gemini":
+            logger.info(f"Using Gemini client for user {user_id}")
+            reply = await gemini_client.process_message(session, user_message)
+        elif model_provider == "grok":
+            logger.info(f"Using Grok client for user {user_id}")
+            reply = await grok_client.process_message(session, user_message)
         else:
             logger.info(f"Using OpenAI client for user {user_id}")
             reply = await openai_client.process_message(session, user_message)
