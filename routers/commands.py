@@ -66,11 +66,15 @@ async def handle_provider_command(message: Message, session_manager):
     current_provider = session_manager.get_model_provider(user_id)
     openai_current = "✓ " if current_provider == "openai" else ""
     claude_current = "✓ " if current_provider == "anthropic" else ""
+    gemini_current = "✓ " if current_provider == "gemini" else ""
+    grok_current = "✓ " if current_provider == "grok" else ""
 
     response = (
         "🤖 <b>Select an AI provider:</b>\n\n"
         f"1. {openai_current}OpenAI\n"
-        f"2. {claude_current}Claude (Anthropic)\n\n"
+        f"2. {claude_current}Claude (Anthropic)\n"
+        f"3. {gemini_current}Gemini (Google)\n"
+        f"4. {grok_current}Grok\n\n"
         "To select a provider, reply with its number (e.g., '1')"
     )
 
@@ -97,9 +101,15 @@ async def handle_model_command(message: Message, session_manager):
     if provider == "openai":
         allowed_models = OPENAI_ALLOWED_MODELS
         default_model = OPENAI_MODEL
-    else:  # anthropic
+    elif provider == "anthropic":
         allowed_models = ANTHROPIC_ALLOWED_MODELS
         default_model = ANTHROPIC_MODEL
+    elif provider == "gemini":
+        allowed_models = GEMINI_ALLOWED_MODELS
+        default_model = GEMINI_MODEL
+    else:
+        allowed_models = GROK_ALLOWED_MODELS
+        default_model = GROK_MODEL
 
     # Use allowed models or fallback to default if empty
     if not allowed_models:
@@ -152,8 +162,12 @@ async def handle_number_selection(message: Message, session_manager):
                 provider = "openai"
             elif selection == 2:
                 provider = "anthropic"
+            elif selection == 3:
+                provider = "gemini"
+            elif selection == 4:
+                provider = "grok"
             else:
-                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                await message.answer("❌ Invalid selection. Please choose 1, 2, 3 or 4.")
                 return
 
             session.update_model(provider)
@@ -171,8 +185,12 @@ async def handle_number_selection(message: Message, session_manager):
             provider = session.get_provider()
             if provider == "openai":
                 allowed_models = OPENAI_ALLOWED_MODELS
-            else:  # anthropic
+            elif provider == "anthropic":
                 allowed_models = ANTHROPIC_ALLOWED_MODELS
+            elif provider == "gemini":
+                allowed_models = GEMINI_ALLOWED_MODELS
+            else:
+                allowed_models = GROK_ALLOWED_MODELS
 
             selected_idx = int(message.text) - 1
             if 0 <= selected_idx < len(allowed_models):
@@ -305,7 +323,7 @@ async def cmd_insta(message: Message, instaloader_client):
         logger.error(f"Error deleting message: {e}")
 
 @router.message(Command("ask"), ~F.photo)
-async def handle_ask_command(message: Message, session_manager, openai_client, claude_client):
+async def handle_ask_command(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
     user_id = message.from_user.id
 
     # Extract the actual question (remove the /ask part)
@@ -321,6 +339,10 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
     # Process the question using the appropriate provider
     if provider == "anthropic":
         response = await session.process_claude_message(question, claude_client)
+    elif provider == "gemini":
+        response = await session.process_gemini_message(question, gemini_client)
+    elif provider == "grok":
+        response = await session.process_grok_message(question, grok_client)
     else:
         response = await session.process_openai_message(question, openai_client)
 
@@ -365,8 +387,12 @@ async def handle_reply_number_selection(message: Message, session_manager):
                 provider = "openai"
             elif selection == 2:
                 provider = "anthropic"
+            elif selection == 3:
+                provider = "gemini"
+            elif selection == 4:
+                provider = "grok"
             else:
-                await message.answer("❌ Invalid selection. Please choose 1 or 2.")
+                await message.answer("❌ Invalid selection. Please choose 1, 2, 3 or 4.")
                 return
 
             session.update_model(provider)
@@ -386,8 +412,12 @@ async def handle_reply_number_selection(message: Message, session_manager):
             provider = session.get_provider()
             if provider == "openai":
                 allowed_models = OPENAI_ALLOWED_MODELS
-            else:  # anthropic
+            elif provider == "anthropic":
                 allowed_models = ANTHROPIC_ALLOWED_MODELS
+            elif provider == "gemini":
+                allowed_models = GEMINI_ALLOWED_MODELS
+            else:
+                allowed_models = GROK_ALLOWED_MODELS
 
             selected_idx = int(message.text) - 1
             if 0 <= selected_idx < len(allowed_models):

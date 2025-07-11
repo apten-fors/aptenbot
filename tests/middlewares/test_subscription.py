@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import Message, User, Chat
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from aiogram.exceptions import TelegramAPIError # Import for specific error checking
 
 # Import the middleware that will be tested
@@ -257,53 +259,3 @@ async def test_message_without_from_user_or_relevant_sender_chat_passes(create_m
 
     mock_handler.assert_called_once_with(event_message, data)
     assert result == "handler_called"
-    # get_chat should not be called again if resolving_started is True and resolved_id is set.
-    # If this test runs in isolation and CHANNEL_ID is "@utility_test_channel", get_chat would be called once.
-    # The key is that it passes to handler.
-    # To be very specific about get_chat not being called here, we'd need to ensure it was called before
-    # or patch CHANNEL_ID to a numeric string for this specific test.
-    # Given the setup, it's fine; the main assertion is that the handler is called.
-
-# Note: The `create_middleware` factory is used to ensure a fresh middleware instance
-# with reset internal state (like resolved_numeric_channel_id) for each test function.
-# This is crucial for testing the resolution logic correctly.
-# Patching `middlewares.subscription.CHANNEL_ID` allows controlling the config value per test.
-# Aiogram's specific exception `TelegramAPIError` is used for more targeted error mocking.
-# (Assuming `aiogram.exceptions.ChatNotFound` might not be a distinct class or is a subclass of TelegramAPIError)
-# If ChatNotFound is a distinct, importable error, it would be even better for that specific case.
-# For now, TelegramAPIError is a good general representation of "API call failed".
-# Added spec=AsyncMock to MagicMock for bot to ensure async methods are properly mocked.
-# In test_channel_id_resolution_fails_telegram_api_error, clarified testing of fallback for both
-# non-subscribed and subscribed users.
-# The test for resolution failure now also checks that resolved_numeric_channel_id is set to -1.The tests for `SubscriptionMiddleware` in `tests/middlewares/test_subscription.py` have been successfully updated to reflect the new `CHANNEL_ID` resolution logic.
-
-Here's a summary of the modifications:
-
-1.  **`mock_bot` Fixture Updated:** The `mock_bot` fixture now includes an `AsyncMock` for `get_chat`, allowing simulation of `bot.get_chat()` calls.
-2.  **`create_middleware` Factory Fixture:** A new factory fixture `create_middleware` was introduced. This ensures that each test function gets a fresh instance of `SubscriptionMiddleware`. This is crucial because the middleware now has internal state (`resolved_numeric_channel_id`, `resolving_started`), and tests for resolution logic (especially caching) need to start with a clean slate.
-3.  **`CHANNEL_ID` Patching:** Instead of a global `TEST_CHANNEL_ID`, `unittest.mock.patch` is used directly within test decorators (e.g., `@patch('middlewares.subscription.CHANNEL_ID', "@testchannel")`) to set the desired `CHANNEL_ID` value from `config` for each specific test scenario. This provides better isolation and clarity.
-4.  **New Tests for Resolution Logic:**
-    *   **`test_channel_id_username_resolution_success_and_cache`**:
-        *   Verifies that when `CHANNEL_ID` is a username string (e.g., "@testchannel"), `bot.get_chat` is called on the first message.
-        *   Confirms the message is bypassed if `sender_chat.id` matches the resolved ID.
-        *   Asserts `bot.get_chat` is NOT called on a subsequent message (testing the caching of the resolved ID), and the bypass still works.
-    *   **`test_channel_id_numeric_string_direct_use`**:
-        *   Verifies that if `CHANNEL_ID` is already a numeric string, `bot.get_chat` is NOT called.
-        *   Confirms the message is bypassed if `sender_chat.id` matches this numeric ID.
-    *   **`test_channel_id_resolution_fails_telegram_api_error`**:
-        *   Simulates `bot.get_chat` raising a `TelegramAPIError`.
-        *   Asserts `bot.get_chat` is called.
-        *   Confirms that the channel bypass is disabled and the middleware falls back to checking the `event.from_user`'s subscription status (testing both non-subscribed and subscribed cases).
-        *   Checks that `resolved_numeric_channel_id` is set to the non-matchable value (`-1`).
-    *   **`test_channel_id_resolution_fails_generic_exception`**:
-        *   Similar to the above, but `bot.get_chat` raises a generic `Exception`.
-        *   Ensures fallback to user subscription check.
-5.  **Adaptation of Existing User Subscription Tests:**
-    *   `test_user_not_subscribed_regular_message` (formerly `test_scenario_1_1_user_not_subscribed`) and `test_user_subscribed_regular_message` (formerly `test_scenario_1_2_user_subscribed`) are updated to use the `create_middleware` factory and patch `CHANNEL_ID`. They verify the core user subscription logic when the channel bypass conditions are not met. The denial message check correctly uses the patched `CHANNEL_ID`.
-6.  **Utility Tests Maintained:**
-    *   `test_non_message_event_passes` and `test_message_without_from_user_or_relevant_sender_chat_passes` were kept and updated to use `create_middleware`, ensuring they still correctly pass non-relevant events/messages to the handler.
-
-**Expected Outcome:**
-All updated tests in `tests/middlewares/test_subscription.py` are expected to pass in a properly configured `pytest` environment. They now comprehensively cover the new `CHANNEL_ID` resolution mechanism, including success, caching, direct use of numeric IDs, and failure scenarios, while also ensuring the original user-based subscription logic remains intact.
-
-The next step is to submit the report.
