@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile, BufferedInputFile
 from aiogram.filters import Command
+from aiogram.exceptions import SkipHandler
 from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS
 import re
 from utils.logging_config import logger
@@ -128,7 +129,7 @@ async def handle_model_command(message: Message, session_manager):
     await message.answer(response, parse_mode="HTML")
 
 @router.message(F.text.regexp(r"^[1-9]\d*$"))
-async def handle_number_selection(message: Message, session_manager):
+async def handle_number_selection(message: Message, session_manager, openai_client, claude_client):
     user_id = message.from_user.id
     chat_type = message.chat.type
     logger.info(f"Handling number selection from user {user_id} in chat type: {chat_type}")
@@ -138,10 +139,10 @@ async def handle_number_selection(message: Message, session_manager):
 
     logger.info(f"Current user state: {state}")
 
-    # If state is not set, ignore numeric messages
+    # If state is not set, let other handlers process numeric messages
     if not state:
-        logger.info("No state set, ignoring numeric message")
-        return
+        logger.info("No state set, skipping handler to allow normal processing")
+        raise SkipHandler()
 
     # Provider selection handling
     if state == "selecting_provider":
@@ -328,7 +329,7 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
 
 # Handler for numeric responses in the form of a reply to a bot message in group chats
 @router.message(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"))
-async def handle_reply_number_selection(message: Message, session_manager):
+async def handle_reply_number_selection(message: Message, session_manager, openai_client, claude_client):
     # Check if the response is a reply to a bot message
     if not message.reply_to_message.from_user or message.reply_to_message.from_user.is_bot is False:
         return
@@ -349,8 +350,10 @@ async def handle_reply_number_selection(message: Message, session_manager):
     # If there's no selection state, this is a regular reply to a message,
     # not an option selection - skip to let the regular reply handler process it
     if not state or state not in ["selecting_provider", "selecting_specific_model", "selecting_img_model"]:
-        logger.info(f"Reply with number but no selection state: {message.text} - passing to regular handler")
-        return
+        logger.info(
+            f"Reply with number but no selection state: {message.text} - skipping to regular handler"
+        )
+        raise SkipHandler()
 
     # From here down, we know this is a reply to handle selection state
     logger.info(f"Handling number reply selection from user {user_id} in chat type: {chat_type}")
