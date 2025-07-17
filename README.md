@@ -8,6 +8,7 @@ A Telegram bot that integrates with OpenAI and Claude AI models to provide intel
 - Image processing and analysis
 - Media group handling
 - Instagram video downloading
+- Automatic Instagram login with shared Redis session
 - Group chat support with mention handling
 - Model switching between OpenAI and Claude
 
@@ -23,7 +24,10 @@ project/
 │   ├── openai_client.py     # OpenAI API integration
 │   ├── claude_client.py     # Claude API integration
 │   ├── flux_client.py       # Image generation API
-│   └── instaloader.py       # Instagram content downloader
+│   ├── instaloader.py       # Instagram content downloader
+│   └── ig_client.py         # Instagram GraphQL facade
+├── redis_client.py          # Redis Sentinel connector
+├── session_store.py         # Redis-based Instagram session cache
 ├── routers/                 # Message routers
 │   ├── commands.py          # Command handlers
 │   ├── messages.py          # Text message handlers
