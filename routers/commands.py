@@ -1,7 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, FSInputFile, BufferedInputFile
 from aiogram.filters import Command
-from aiogram.exceptions import SkipHandler
+from aiogram.dispatcher.event.bases import SkipHandler
 from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS, GEMINI_MODEL, GEMINI_ALLOWED_MODELS, GROK_MODEL, GROK_ALLOWED_MODELS
 import re
 from utils.logging_config import logger
