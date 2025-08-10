@@ -16,7 +16,7 @@ h11==0.16.0
 httpcore==1.0.9
 httpx==0.27.2
 idna==3.9
-instaloader==4.14
+instaloader>=4.14.1
 jiter==0.5.0
 magic-filter==1.0.12
 multidict==6.1.0
@@ -32,4 +32,6 @@ tqdm==4.66.5
 typing_extensions==4.12.2
 urllib3==2.2.3
 yarl==1.18.0
+redis==5.*
+prometheus-client==0.20.0
 google-generativeai==0.5.0
