@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import Message, User, Chat
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from aiogram.exceptions import TelegramAPIError # Import for specific error checking
 
 # Import the middleware that will be tested
@@ -257,9 +259,3 @@ async def test_message_without_from_user_or_relevant_sender_chat_passes(create_m
 
     mock_handler.assert_called_once_with(event_message, data)
     assert result == "handler_called"
-    # get_chat should not be called again if resolving_started is True and resolved_id is set.
-    # If this test runs in isolation and CHANNEL_ID is "@utility_test_channel", get_chat would be called once.
-    # The key is that it passes to handler.
-    # To be very specific about get_chat not being called here, we'd need to ensure it was called before
-    # or patch CHANNEL_ID to a numeric string for this specific test.
-    # Given the setup, it's fine; the main assertion is that the handler is called.
