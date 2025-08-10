@@ -1,7 +1,7 @@
 from redis.asyncio.sentinel import Sentinel
 from redis.asyncio.client import Redis
 from typing import List, Tuple
-from settings import REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_MASTER, REDIS_PASSWORD
+from utils.settings import REDIS_SENTINEL_HOSTS, REDIS_SENTINEL_MASTER, REDIS_PASSWORD
 
 
 def _parse_hosts() -> List[Tuple[str, int]]:

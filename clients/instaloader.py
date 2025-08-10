@@ -1,8 +1,11 @@
 import os
 import instaloader
 from utils.logging_config import logger
-from settings import IG_USERNAME, IG_PASSWORD
 from pathlib import Path
+
+# Read credentials from environment to avoid import-time dependency on settings.py in Docker
+IG_USERNAME = os.getenv("IG_USERNAME")
+IG_PASSWORD = os.getenv("IG_PASSWORD")
 
 class InstaloaderClient:
     def __init__(self):

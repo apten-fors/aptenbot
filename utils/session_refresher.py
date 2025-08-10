@@ -1,7 +1,7 @@
 import asyncio
-from redis_client import RedisClient
-from session_store import IgSessionStore
-from ig_client import IgClient
+from utils.redis_client import RedisClient
+from utils.session_store import IgSessionStore
+from clients.ig_client import IgClient
 from utils.logging_config import logger
 
 

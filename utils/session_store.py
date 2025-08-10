@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 from redis.asyncio.client import Redis
-from settings import IG_SESSION_REFRESH_HOURS
+from utils.settings import IG_SESSION_REFRESH_HOURS
 
 SESSION_KEY = "ig:session:{username}"
 LOCK_KEY = "ig:session:lock"

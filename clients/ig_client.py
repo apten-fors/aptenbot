@@ -3,8 +3,8 @@ import httpx
 import instaloader
 from typing import Any, Dict
 
-from settings import IG_USERNAME, IG_PASSWORD, IG_LOGIN_TIMEOUT_SEC
-from session_store import IgSessionStore
+from utils.settings import IG_USERNAME, IG_PASSWORD, IG_LOGIN_TIMEOUT_SEC
+from utils.session_store import IgSessionStore
 from utils.logging_config import logger
 
 
