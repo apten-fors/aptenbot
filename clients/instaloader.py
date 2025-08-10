@@ -6,6 +6,18 @@ from pathlib import Path
 # Read credentials from environment to avoid import-time dependency on settings.py in Docker
 IG_USERNAME = os.getenv("IG_USERNAME")
 IG_PASSWORD = os.getenv("IG_PASSWORD")
+SESSION_FILE_ENV = os.getenv("INSTALOADER_SESSION_FILE")
+IG_SESSIONID = os.getenv("IG_SESSIONID")
+IG_CSRFTOKEN = os.getenv("IG_CSRFTOKEN")
+IG_DS_USER_ID = os.getenv("IG_DS_USER_ID")
+
+# Optional Redis-backed session store
+try:
+    from utils.redis_client import RedisClient  # lazy optional import
+    from utils.session_store import IgSessionStore
+    _HAS_REDIS = True
+except Exception:
+    _HAS_REDIS = False
 
 class InstaloaderClient:
     def __init__(self):
@@ -17,8 +29,67 @@ class InstaloaderClient:
             save_metadata=False
         )
         self._logged_in = False
-        self._session_file = f".instaloader_session_{IG_USERNAME}" if IG_USERNAME else None
-        self._ensure_login()
+        # Prefer user-provided session file if set, otherwise fallback to project-local
+        if SESSION_FILE_ENV:
+            self._session_file = SESSION_FILE_ENV
+        else:
+            self._session_file = f".instaloader_session_{IG_USERNAME}" if IG_USERNAME else None
+        # Try to load cookies from Redis or environment (no interactive login required)
+        self._try_load_redis_cookies()
+        self._try_load_env_cookies()
+        # Do NOT auto-login on startup; defer until needed to avoid crashing the bot
+
+    def _apply_cookies_to_context(self, cookies: dict) -> None:
+        try:
+            jar = self.loader.context._session.cookies
+            for name, value in cookies.items():
+                if value is None:
+                    continue
+                jar.set(name, value, domain=".instagram.com", path="/")
+            self._logged_in = True
+        except Exception as e:
+            logger.warning(f"Failed to apply cookies to Instaloader context: {e}")
+
+    def _try_load_redis_cookies(self) -> None:
+        if not _HAS_REDIS or not IG_USERNAME:
+            return
+        try:
+            redis = RedisClient().get_master()
+            store = IgSessionStore(redis)
+            # IgSessionStore stores a dict with keys: sessionid, csrftoken, ds_user_id, cookies
+            # We prefer explicit cookie values and fallback to cookies dict
+            import asyncio
+            async def _fetch():
+                return await store.get_session(IG_USERNAME)
+            data = asyncio.get_event_loop().run_until_complete(_fetch())
+            if data and isinstance(data, dict):
+                cookies = {
+                    "sessionid": data.get("sessionid"),
+                    "csrftoken": data.get("csrftoken"),
+                    "ds_user_id": data.get("ds_user_id"),
+                }
+                # If full cookies dict is present, merge
+                if isinstance(data.get("cookies"), dict):
+                    cookies.update(data["cookies"])
+                self._apply_cookies_to_context(cookies)
+                if self._logged_in:
+                    logger.info("Loaded Instagram cookies from Redis session store. Skipping login.")
+        except Exception as e:
+            logger.warning(f"Failed to load IG cookies from Redis: {e}")
+
+    def _try_load_env_cookies(self) -> None:
+        if IG_SESSIONID:
+            try:
+                cookies = {
+                    "sessionid": IG_SESSIONID,
+                    "csrftoken": IG_CSRFTOKEN,
+                    "ds_user_id": IG_DS_USER_ID,
+                }
+                self._apply_cookies_to_context(cookies)
+                if self._logged_in:
+                    logger.info("Loaded Instagram cookies from environment. Skipping login.")
+            except Exception as e:
+                logger.warning(f"Failed to apply IG cookies from env: {e}")
 
     def _ensure_login(self) -> None:
         if self._logged_in:
@@ -64,6 +135,13 @@ class InstaloaderClient:
         try:
             self._ensure_login()
         except Exception as e:
+            # If a checkpoint is required or any login-side error occurs, surface a friendly message
+            msg = str(e)
+            if "Checkpoint required" in msg:
+                return False, (
+                    "Instagram requires verification (checkpoint). "
+                    "Open the challenge URL from logs in a browser, complete the steps, and retry."
+                )
             logger.warning(f"Proceeding without IG login due to error: {e}")
 
         def _do_download() -> tuple[bool, str]:
@@ -89,7 +167,7 @@ class InstaloaderClient:
         except Exception as e:
             msg = str(e)
             logger.warning(f"Download failed on first attempt: {msg}")
-            if any(err in msg for err in ["401", "403", "Please wait a few minutes"]):
+            if any(err in msg for err in ["401", "403", "Please wait a few minutes", "Checkpoint required"]):
                 # Clear persisted session and re-login once
                 try:
                     if self._session_file and Path(self._session_file).exists():
@@ -99,9 +177,18 @@ class InstaloaderClient:
                     logger.warning(f"Failed to remove session file: {del_err}")
                 self._logged_in = False
                 try:
-                    self._ensure_login()
+                    # Try Redis/env cookies again before login
+                    self._try_load_redis_cookies()
+                    self._try_load_env_cookies()
+                    if not self._logged_in:
+                        self._ensure_login()
                     return _do_download()
                 except Exception as e2:
+                    if "Checkpoint required" in str(e2):
+                        return False, (
+                            "Instagram requires verification (checkpoint). "
+                            "Open the challenge URL from logs in a browser, complete the steps, and retry."
+                        )
                     logger.error(f"Retry after re-login failed: {e2}")
                     return False, f"Failed to download video after re-login: {e2}"
             logger.error(f'Something went wrong while downloading video: {e}')
