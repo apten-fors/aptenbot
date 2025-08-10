@@ -317,11 +317,16 @@ async def cmd_insta(message: Message, instaloader_client):
     video_file = FSInputFile(path)
     await message.answer_video(video_file)
 
-    # Delete the original command message
-    try:
-        await message.delete()
-    except Exception as e:
-        logger.error(f"Error deleting message: {e}")
+    # Try deleting the original command message only when allowed (groups, bot has rights)
+    if message.chat.type in ("group", "supergroup"):
+        try:
+            me = await message.bot.get_me()
+            member = await message.bot.get_chat_member(message.chat.id, me.id)
+            can_delete = bool(getattr(member, "can_delete_messages", False))
+            if can_delete:
+                await message.delete()
+        except Exception as e:
+            logger.debug(f"Skip deleting message (no rights or not allowed): {e}")
 
 @router.message(Command("ask"), ~F.photo)
 async def handle_ask_command(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
