@@ -8,6 +8,8 @@ from managers.session_manager import SessionManager
 from managers.subscription_manager import SubscriptionManager
 from clients.openai_client import OpenAIClient
 from clients.claude_client import ClaudeClient
+from clients.gemini_client import GeminiClient
+from clients.grok_client import GrokClient
 from clients.flux_client import FluxClient
 from clients.instaloader import InstaloaderClient
 from routers import commands_router, messages_router, media_router
@@ -34,6 +36,8 @@ async def main():
     subscription_manager = SubscriptionManager()
     openai_client = OpenAIClient()
     claude_client = ClaudeClient()
+    gemini_client = GeminiClient()
+    grok_client = GrokClient()
     flux_client = FluxClient()
     instaloader_client = InstaloaderClient()
 
@@ -42,6 +46,8 @@ async def main():
     dp["subscription_manager"] = subscription_manager
     dp["openai_client"] = openai_client
     dp["claude_client"] = claude_client
+    dp["gemini_client"] = gemini_client
+    dp["grok_client"] = grok_client
     dp["flux_client"] = flux_client
     dp["instaloader_client"] = instaloader_client
 
@@ -54,6 +60,8 @@ async def main():
         session_manager=session_manager,
         openai_client=openai_client,
         claude_client=claude_client,
+        gemini_client=gemini_client,
+        grok_client=grok_client,
         flux_client=flux_client,
         instaloader_client=instaloader_client
     )
