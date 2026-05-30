@@ -190,3 +190,19 @@ def default_model_for(provider_id: str) -> str:
 def is_image_capable(provider_id: str) -> bool:
     p = get_provider(provider_id)
     return bool(p and p.supports_images)
+
+
+# Built-in providers shipped with the app; everything else is declared via
+# CUSTOM_PROVIDERS and is assumed self-hosted (sglang/vLLM-style).
+BUILTIN_PROVIDER_IDS = frozenset({"openai", "anthropic", "gemini", "grok"})
+
+
+def is_custom_provider(provider_id: str) -> bool:
+    """True for self-hosted OpenAI-compatible providers from CUSTOM_PROVIDERS.
+
+    These endpoints (e.g. Kimi on sglang) accept ``chat_template_kwargs`` such as
+    ``{"thinking": False}``; built-in providers — including Grok — do not, so the
+    guest thinking-toggle is restricted to this set.
+    """
+    p = get_provider(provider_id)
+    return bool(p and p.api_style == OPENAI_CHAT and provider_id not in BUILTIN_PROVIDER_IDS)

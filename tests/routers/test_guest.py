@@ -195,6 +195,33 @@ async def test_public_allows_without_allowlist(session_manager, clients, allow_l
     message.answer_guest_query.assert_called_once()
 
 
+# guest path suppresses thinking for self-hosted (custom) providers
+@pytest.mark.asyncio
+async def test_guest_disables_thinking_for_custom_provider(session_manager, clients, allow_limiter):
+    session_manager.get_model_provider = MagicMock(return_value="kimi")
+    message = make_message()
+    with patch("routers.guest.GUEST_ACCESS_MODE", "public"), \
+         patch("routers.guest.GUEST_DISABLE_THINKING", True), \
+         patch("routers.guest.is_custom_provider", return_value=True), \
+         patch("routers.guest.generate_text_answer", new=AsyncMock(return_value="hi")) as gen:
+        await _run(message, session_manager, clients, allow_limiter)
+    session = gen.call_args.kwargs["session"]
+    assert session.data.get("extra_body") == {"chat_template_kwargs": {"thinking": False}}
+
+
+# guest path leaves built-in providers (e.g. Grok) untouched
+@pytest.mark.asyncio
+async def test_guest_keeps_thinking_for_builtin_provider(session_manager, clients, allow_limiter):
+    message = make_message()
+    with patch("routers.guest.GUEST_ACCESS_MODE", "public"), \
+         patch("routers.guest.GUEST_DISABLE_THINKING", True), \
+         patch("routers.guest.is_custom_provider", return_value=False), \
+         patch("routers.guest.generate_text_answer", new=AsyncMock(return_value="hi")) as gen:
+        await _run(message, session_manager, clients, allow_limiter)
+    session = gen.call_args.kwargs["session"]
+    assert "extra_body" not in session.data
+
+
 # provider-error string is replaced with the friendly fallback
 @pytest.mark.asyncio
 async def test_provider_error_string_replaced_with_fallback(session_manager, clients, allow_limiter):

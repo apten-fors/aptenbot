@@ -287,12 +287,18 @@ class Session:
                 {"role": "system" if m["role"] == "developer" else m["role"], "content": m["content"]}
                 for m in messages
             ]
+            # Optional per-request body (e.g. {"chat_template_kwargs": {"thinking":
+            # False}}) set on ephemeral guest sessions to suppress slow reasoning.
+            create_kwargs = {
+                "model": model_id,
+                "messages": history_messages,
+                "max_tokens": CHAT_COMPLETIONS_MAX_TOKENS,
+            }
+            extra_body = self.data.get("extra_body")
+            if extra_body:
+                create_kwargs["extra_body"] = extra_body
             async with chat_client.get_client() as client:
-                response = await client.chat.completions.create(
-                    model=model_id,
-                    messages=history_messages,
-                    max_tokens=CHAT_COMPLETIONS_MAX_TOKENS,
-                )
+                response = await client.chat.completions.create(**create_kwargs)
             # Thinking models (e.g. Kimi K2.6) keep their chain-of-thought in
             # ``reasoning_content`` and the user-facing answer in ``content``.
             # Only ``content`` should ever be shown; if it's empty the model
@@ -334,12 +340,16 @@ class Session:
         history_messages.append({"role": "user", "content": message_content})
 
         try:
+            create_kwargs = {
+                "model": model_to_use,
+                "messages": history_messages,
+                "max_tokens": CHAT_COMPLETIONS_MAX_TOKENS,
+            }
+            extra_body = self.data.get("extra_body")
+            if extra_body:
+                create_kwargs["extra_body"] = extra_body
             async with chat_client.get_client() as client:
-                response = await client.chat.completions.create(
-                    model=model_to_use,
-                    messages=history_messages,
-                    max_tokens=CHAT_COMPLETIONS_MAX_TOKENS,
-                )
+                response = await client.chat.completions.create(**create_kwargs)
             choice = response.choices[0]
             reply = (choice.message.content or "").strip()
             if not reply:

@@ -14,9 +14,11 @@ from aiogram.types import Message, InlineQueryResultArticle, InputTextMessageCon
 from config import (
     GUEST_ACCESS_MODE,
     GUEST_ALLOWED_USER_IDS,
+    GUEST_DISABLE_THINKING,
     GUEST_MAX_RESPONSE_CHARS,
     GUEST_TIMEOUT_SECONDS,
 )
+from providers import is_custom_provider
 from services.answer_service import (
     build_ephemeral_session,
     generate_text_answer,
@@ -121,7 +123,13 @@ async def handle_guest_message(
     # returns the default without mutating sessions when absent.
     session_key = build_guest_session_key(caller_user_id, guest_query_id)
     provider = session_manager.get_model_provider(caller_user_id)
-    session = build_ephemeral_session(provider)
+    # Self-hosted thinking models (Kimi K2.6 on sglang) can take minutes, but
+    # Telegram closes the guest query after a short window. Suppress reasoning so
+    # the answer fits inside it; built-in providers (incl. Grok) keep thinking.
+    extra_body = None
+    if GUEST_DISABLE_THINKING and is_custom_provider(provider):
+        extra_body = {"chat_template_kwargs": {"thinking": False}}
+    session = build_ephemeral_session(provider, extra_body=extra_body)
 
     logger.info(
         "guest_message_llm_started caller_user_id=%s guest_query_id=%s provider=%s",

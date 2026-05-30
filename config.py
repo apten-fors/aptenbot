@@ -74,6 +74,13 @@ GUEST_ALLOWED_USER_IDS = parse_guest_allowed_user_ids(os.getenv("TG_GUEST_ALLOWE
 GUEST_MAX_RESPONSE_CHARS = int(os.getenv("TG_GUEST_MAX_RESPONSE_CHARS", "3500"))
 GUEST_TIMEOUT_SECONDS = int(os.getenv("TG_GUEST_TIMEOUT_SECONDS", "45"))
 GUEST_RATE_LIMIT_PER_USER_MINUTE = int(os.getenv("TG_GUEST_RATE_LIMIT_PER_USER_MINUTE", "3"))
+# Suppress chain-of-thought for guest answers. Thinking models (e.g. Kimi K2.6 on
+# sglang) can take minutes, but Telegram closes a guest query after a short
+# server-side window, so a slow answer is rejected as "query is too old". On the
+# guest path we send chat_template_kwargs={"thinking": False} to self-hosted
+# OpenAI-compatible providers so they answer within that window. Built-in
+# providers and the direct-chat path are unaffected.
+GUEST_DISABLE_THINKING = os.getenv("TG_GUEST_DISABLE_THINKING", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 # Update types requested from Telegram during polling. "guest_message" is
 # load-bearing: Telegram won't deliver guest updates unless it is listed here.

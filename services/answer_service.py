@@ -34,20 +34,32 @@ def select_client(provider_clients: Dict[str, object], provider: str):
     return provider_clients.get(provider) or provider_clients.get(default_provider_id())
 
 
-def build_ephemeral_session(provider: str, model: Optional[str] = None) -> Session:
+def build_ephemeral_session(
+    provider: str,
+    model: Optional[str] = None,
+    *,
+    extra_body: Optional[Dict] = None,
+) -> Session:
     """Build a one-shot ``Session`` backed by a fresh dict.
 
     This session is NEVER stored in ``SessionManager.sessions`` — it carries only
     the developer/system prompt and the provider/model selection, and is
     discarded by the caller after use.
+
+    ``extra_body`` is an optional per-request body merged into OpenAI-compatible
+    chat/completions calls (e.g. ``{"chat_template_kwargs": {"thinking": False}}``
+    to suppress chain-of-thought on the guest path).
     """
-    return Session({
+    data = {
         "messages": [{"role": "developer", "content": SYSTEM_PROMPT}],
         "model_provider": provider,
         "model": model or default_model_for(provider),
         "image_model": "openai",
         "state": None,
-    })
+    }
+    if extra_body:
+        data["extra_body"] = extra_body
+    return Session(data)
 
 
 async def generate_text_answer(
