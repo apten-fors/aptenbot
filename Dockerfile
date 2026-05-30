@@ -12,7 +12,9 @@ COPY middlewares/ /app/middlewares/
 COPY routers/ /app/routers/
 COPY models/ /app/models/
 COPY states/ /app/states/
+COPY services/ /app/services/
 COPY bot.py /app/bot.py
 COPY config.py /app/config.py
+COPY providers.py /app/providers.py
 
 CMD ["python", "bot.py"]
