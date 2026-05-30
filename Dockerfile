@@ -12,16 +12,6 @@ ENV UV_LINK_MODE=copy \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY utils/ /app/utils/
-COPY managers/ /app/managers/
-COPY clients/ /app/clients/
-COPY middlewares/ /app/middlewares/
-COPY routers/ /app/routers/
-COPY models/ /app/models/
-COPY states/ /app/states/
-COPY services/ /app/services/
-COPY bot.py /app/bot.py
-COPY config.py /app/config.py
-COPY providers.py /app/providers.py
+COPY . .
 
 CMD ["uv", "run", "--frozen", "--no-dev", "python", "bot.py"]
