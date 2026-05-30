@@ -21,14 +21,14 @@ This project is a sophisticated Telegram bot built with `aiogram 3.x` that acts 
 ## Build & Development Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (uv reads .python-version → Python 3.14, builds .venv)
+uv sync
 
 # Run the bot locally
-python bot.py
+uv run python bot.py
 
 # Run tests
-pytest tests/
+uv run pytest
 
 # Build Docker image
 docker build -t tgbot .

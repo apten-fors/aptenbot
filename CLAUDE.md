@@ -9,15 +9,17 @@ A Telegram bot built with aiogram 3.x that integrates multiple AI providers (Ope
 ## Commands
 
 ### Development
+The project is managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`),
+pinned to Python 3.14 via `.python-version`. There is no `requirements.txt`.
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (creates .venv on Python 3.14)
+uv sync
 
 # Run the bot
-python bot.py
+uv run python bot.py
 
 # Run tests
-pytest tests/
+uv run pytest
 ```
 
 ### Required Environment Variables

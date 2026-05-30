@@ -1,7 +1,7 @@
 import json
 import logging
 import logging.config
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import json as jsonlogger
 from config import LOG_LEVEL
 
 

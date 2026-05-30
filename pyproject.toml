@@ -1,0 +1,32 @@
+[project]
+name = "aptenbot"
+version = "1.0.3"
+description = "Telegram bot (aiogram 3.x) integrating multiple AI providers — OpenAI, Claude, Gemini, Grok, and OpenAI-compatible custom providers."
+requires-python = ">=3.14"
+dependencies = [
+    "aiogram",
+    "aiohttp",
+    "anthropic",
+    "colorama",
+    "google-generativeai",
+    "instagrapi",
+    "openai",
+    "prometheus-client",
+    "python-json-logger",
+    "redis>=5,<6",
+    "requests",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"

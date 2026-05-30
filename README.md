@@ -69,15 +69,14 @@ git clone https://github.com/yourusername/tgbot.git
 cd tgbot
 ```
 
-2. Create and activate a virtual environment:
+2. Install [uv](https://docs.astral.sh/uv/) (if you don't have it):
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-3. Install dependencies:
+3. Install dependencies (uv reads `.python-version` → Python 3.14 and creates `.venv` automatically):
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 4. Set up your environment variables:
@@ -119,7 +118,7 @@ export KIMI_NAME='Kimi'                        # optional display name
 
 5. Run the bot:
 ```bash
-python bot.py
+uv run python bot.py
 ```
 
 ## Required API Keys
