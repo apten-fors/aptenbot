@@ -55,3 +55,20 @@ OPENAI_ALLOWED_MODELS = [model.strip() for model in OPENAI_ALLOWED_MODELS if mod
 ANTHROPIC_ALLOWED_MODELS = [model.strip() for model in ANTHROPIC_ALLOWED_MODELS if model.strip()]
 GEMINI_ALLOWED_MODELS = [model.strip() for model in GEMINI_ALLOWED_MODELS if model.strip()]
 GROK_ALLOWED_MODELS = [model.strip() for model in GROK_ALLOWED_MODELS if model.strip()]
+
+# --- Telegram Guest Mode (Bot API 10.0) ---
+# Guest Mode lets an allowed user call the bot via @mention from arbitrary chats
+# where the bot is not a member. Access control is based on the CALLER user id,
+# never on a source chat allowlist. Disabled by default.
+from utils.guest import parse_guest_allowed_user_ids  # utils.guest must not import config (no cycle)
+
+# disabled | allowlist | public
+GUEST_ACCESS_MODE = os.getenv("TG_GUEST_ACCESS_MODE", "disabled").strip().lower()
+GUEST_ALLOWED_USER_IDS = parse_guest_allowed_user_ids(os.getenv("TG_GUEST_ALLOWED_USER_IDS", ""))
+GUEST_MAX_RESPONSE_CHARS = int(os.getenv("TG_GUEST_MAX_RESPONSE_CHARS", "3500"))
+GUEST_TIMEOUT_SECONDS = int(os.getenv("TG_GUEST_TIMEOUT_SECONDS", "45"))
+GUEST_RATE_LIMIT_PER_USER_MINUTE = int(os.getenv("TG_GUEST_RATE_LIMIT_PER_USER_MINUTE", "3"))
+
+# Update types requested from Telegram during polling. "guest_message" is
+# load-bearing: Telegram won't deliver guest updates unless it is listed here.
+ALLOWED_UPDATES = ["message", "callback_query", "guest_message"]

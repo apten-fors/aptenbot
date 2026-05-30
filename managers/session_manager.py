@@ -3,15 +3,11 @@ import time
 from typing import Dict, List, Union, Optional
 from config import (
     SESSION_EXPIRY,
-    OPENAI_MODEL,
-    ANTHROPIC_MODEL,
-    GEMINI_MODEL,
-    GROK_MODEL,
     SYSTEM_PROMPT,
     DEFAULT_MODEL_PROVIDER,
-    OPENAI_MODELS_REASONING,
     OPENAI_REASONING_EFFORT,
 )
+from providers import default_model_for
 from models.models_list import MODELS, DEFAULT_MODEL
 from utils.logging_config import logger
 
@@ -26,7 +22,7 @@ class SessionManager:
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': current_time,
                 'model_provider': DEFAULT_MODEL_PROVIDER,
-                'model': OPENAI_MODEL if DEFAULT_MODEL_PROVIDER == 'openai' else ANTHROPIC_MODEL if DEFAULT_MODEL_PROVIDER == 'anthropic' else GEMINI_MODEL if DEFAULT_MODEL_PROVIDER == 'gemini' else GROK_MODEL,
+                'model': default_model_for(DEFAULT_MODEL_PROVIDER),
                 'image_model': 'openai',  # Default image model
                 'state': None
             }
@@ -38,8 +34,7 @@ class SessionManager:
     def create_new_session(self, user_id: int) -> None:
         # Preserve model preferences when creating a new session
         model_provider = self.sessions.get(user_id, {}).get('model_provider', DEFAULT_MODEL_PROVIDER)
-        model = self.sessions.get(user_id, {}).get('model',
-                                                  OPENAI_MODEL if model_provider == 'openai' else ANTHROPIC_MODEL if model_provider == 'anthropic' else GEMINI_MODEL if model_provider == 'gemini' else GROK_MODEL)
+        model = self.sessions.get(user_id, {}).get('model', default_model_for(model_provider))
         image_model = self.sessions.get(user_id, {}).get('image_model', 'openai')
 
         self.sessions[user_id] = {
@@ -61,20 +56,13 @@ class SessionManager:
         """Set the model provider for a user session"""
         if user_id in self.sessions:
             self.sessions[user_id]['model_provider'] = provider
-            if provider == 'openai':
-                self.sessions[user_id]['model'] = OPENAI_MODEL
-            elif provider == 'anthropic':
-                self.sessions[user_id]['model'] = ANTHROPIC_MODEL
-            elif provider == 'gemini':
-                self.sessions[user_id]['model'] = GEMINI_MODEL
-            else:
-                self.sessions[user_id]['model'] = GROK_MODEL
+            self.sessions[user_id]['model'] = default_model_for(provider)
         else:
             self.sessions[user_id] = {
                 'messages': [{"role": "developer", "content": SYSTEM_PROMPT}],
                 'last_activity': time.time(),
                 'model_provider': provider,
-                'model': OPENAI_MODEL if provider == 'openai' else ANTHROPIC_MODEL if provider == 'anthropic' else GEMINI_MODEL if provider == 'gemini' else GROK_MODEL,
+                'model': default_model_for(provider),
                 'image_model': 'openai',
                 'state': None
             }
@@ -119,14 +107,7 @@ class Session:
         logger.info(f"Updating model provider to: {provider_id}")
         self.data['model_provider'] = provider_id
         # Set default model for the provider
-        if provider_id == 'openai':
-            self.data['model'] = OPENAI_MODEL
-        elif provider_id == 'anthropic':
-            self.data['model'] = ANTHROPIC_MODEL
-        elif provider_id == 'gemini':
-            self.data['model'] = GEMINI_MODEL
-        else:
-            self.data['model'] = GROK_MODEL
+        self.data['model'] = default_model_for(provider_id)
 
     def update_specific_model(self, model_id: str) -> None:
         """Update the specific model for this session"""
@@ -142,15 +123,7 @@ class Session:
     def get_model(self) -> str:
         """Get the current specific model"""
         provider = self.get_provider()
-        if provider == 'openai':
-            default_model = OPENAI_MODEL
-        elif provider == 'anthropic':
-            default_model = ANTHROPIC_MODEL
-        elif provider == 'gemini':
-            default_model = GEMINI_MODEL
-        else:
-            default_model = GROK_MODEL
-        return self.data.get('model', default_model)
+        return self.data.get('model', default_model_for(provider))
 
     def update_image_model(self, model_id: str) -> None:
         """Update the image generation model for this session"""
@@ -294,8 +267,12 @@ class Session:
         except Exception as e:
             return f"Error processing message with Gemini: {str(e)}"
 
-    async def process_grok_message(self, message: str, grok_client):
-        """Process a message using Grok (OpenAI-compatible)"""
+    async def process_openai_chat_message(self, message: str, chat_client):
+        """Process a message via an OpenAI-compatible /v1/chat/completions endpoint.
+
+        Shared by Grok and all self-hosted providers (kimi, glm, deepseek, ...).
+        """
+        provider_name = getattr(chat_client, "provider_name", "the model")
         messages = self.data.get('messages', [])
 
         messages.append({"role": "user", "content": message})
@@ -303,10 +280,16 @@ class Session:
         model_id = self.get_model()
 
         try:
-            async with grok_client.get_client() as client:
+            # Map the internal "developer" system role to "system" — chat
+            # completions servers (vLLM, etc.) do not accept "developer".
+            history_messages = [
+                {"role": "system" if m["role"] == "developer" else m["role"], "content": m["content"]}
+                for m in messages
+            ]
+            async with chat_client.get_client() as client:
                 response = await client.chat.completions.create(
                     model=model_id,
-                    messages=[{"role": m["role"], "content": m["content"]} for m in messages]
+                    messages=history_messages
                 )
             assistant_message = response.choices[0].message.content
 
@@ -314,13 +297,14 @@ class Session:
             self.data['messages'] = messages
             return assistant_message
         except Exception as e:
-            return f"Error processing message with Grok: {str(e)}"
+            return f"Error processing message with {provider_name}: {str(e)}"
 
-    async def process_grok_message_with_image(self, message: str, image_urls: List[str], grok_client):
+    async def process_openai_chat_message_with_image(self, message: str, image_urls: List[str], chat_client):
+        provider_name = getattr(chat_client, "provider_name", "the model")
         message_content = [{"type": "text", "text": message}]
         for url in image_urls:
             if not url.startswith(('http://', 'https://')):
-                url = f"https://api.telegram.org/file/bot{grok_client.telegram_bot_token}/{url}"
+                url = f"https://api.telegram.org/file/bot{chat_client.telegram_bot_token}/{url}"
             message_content.append({
                 "type": "image_url",
                 "image_url": {"url": url, "detail": "auto"}
@@ -336,7 +320,7 @@ class Session:
         history_messages.append({"role": "user", "content": message_content})
 
         try:
-            async with grok_client.get_client() as client:
+            async with chat_client.get_client() as client:
                 response = await client.chat.completions.create(
                     model=model_to_use,
                     messages=history_messages
@@ -348,4 +332,4 @@ class Session:
             self.data['messages'] = messages
             return reply
         except Exception as e:
-            return f"Error processing message with Grok: {str(e)}"
+            return f"Error processing message with {provider_name}: {str(e)}"

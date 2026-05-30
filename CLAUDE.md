@@ -34,6 +34,17 @@ export GROK_API_KEY='your_key'
 # Optional
 export BFL_API_KEY='your_key'  # For Flux image generation
 export CHANNEL_ID='@channel1,@channel2'  # Comma-separated list for subscription checks
+
+# Self-hosted / OpenAI-compatible providers (chat/completions). Add any number
+# of providers via CUSTOM_PROVIDERS (comma-separated prefixes); each is text-only
+# by default and only appears once its API key + base URL + models are all set.
+export CUSTOM_PROVIDERS='kimi,glm,deepseek'
+export KIMI_API_KEY='...'
+export KIMI_BASE_URL='https://kimi.myinfra.example/v1'
+export KIMI_MODELS='kimi26'            # comma-separated model ids your server exposes
+export KIMI_NAME='Kimi'                # optional display name
+# export KIMI_DEFAULT_MODEL='kimi26'   # optional (defaults to first of *_MODELS)
+# export KIMI_SUPPORTS_IMAGES='true'   # optional (default: text only)
 ```
 
 ## Architecture
@@ -50,16 +61,18 @@ export CHANNEL_ID='@channel1,@channel2'  # Comma-separated list for subscription
 **Dependency Injection Pattern**
 All handlers receive dependencies through middleware injection, not direct imports:
 ```python
-async def handler(message: Message, session_manager, openai_client, claude_client):
+async def handler(message: Message, session_manager, provider_clients):
     # Dependencies automatically injected by DependencyMiddleware
 ```
 
-The `DependencyMiddleware` (middlewares/dependencies.py) injects clients and managers into handler parameters. Never instantiate clients directly in handlers.
+The `DependencyMiddleware` (middlewares/dependencies.py) injects managers and clients into handler parameters. Never instantiate clients directly in handlers.
+
+Chat handlers receive `provider_clients` — a `dict[provider_id -> client]` built in `bot.py` from the provider registry (see below). Dispatch is registry-driven, not hardcoded: resolve the client with `select_client(provider_clients, provider)` (services/answer_service.py) and call `client.process_message(...)` / `process_message_with_image(...)`. `openai_client` (for `/img`), `flux_client`, and `instagram_client` are still injected individually for non-chat features.
 
 **Session Management (`managers/session_manager.py`)**
 - `SessionManager`: Manages per-user conversation state with in-memory dict storage
 - `Session`: Wrapper class for individual user sessions with methods like:
-  - `process_openai_message()`, `process_claude_message()`, `process_gemini_message()`, `process_grok_message()`
+  - `process_openai_message()`, `process_claude_message()`, `process_gemini_message()`, `process_openai_chat_message()` (the latter is shared by Grok and all OpenAI-compatible custom providers)
   - `update_state()`, `get_state()`, `clear_state()` for FSM state tracking
   - `update_model()`, `get_model()` for model selection
 - Sessions expire after 1 hour (SESSION_EXPIRY in config.py)
@@ -90,11 +103,27 @@ Key methods:
 - System prompt passed separately (not in messages array)
 - Image format: `{"type": "image", "source": {"type": "url", "url": "..."}}`
 
+**OpenAI-Compatible Client (`clients/openai_compatible_client.py`)**
+- Used by Grok AND all self-hosted custom providers (kimi, glm, deepseek, ...)
+- Uses the Chat Completions API (`chat.completions.create`) via `AsyncOpenAI(api_key, base_url)`
+- One instance per provider, bound to that provider's `api_key` + `base_url`
+- Request logic lives in `Session.process_openai_chat_message()` (maps the internal
+  "developer" system role to "system" for chat/completions servers)
+
 **Other Clients**
 - Gemini: Uses Google's generativeai library with sync wrapper
-- Grok: OpenAI-compatible API via custom base URL
 - Flux: Black Forest Labs API for image generation
 - Instagrapi: Downloads Instagram videos with Redis session caching
+
+**Provider Registry (`providers.py`)**
+- Single source of truth for chat providers; built-ins (openai/anthropic/gemini/grok)
+  come from `config.py`, custom ones from the `CUSTOM_PROVIDERS` env var
+- `ProviderConfig` carries id, name, api_style, api_key, base_url, models, default_model, supports_images
+- A provider is only *enabled* when its required credentials are present, so the
+  `/provider` menu and dispatch reflect what is actually configured
+- Helpers used across the app: `enabled_providers()`, `get_provider()`, `models_for()`,
+  `default_model_for()`, `default_provider_id()`, `is_image_capable()`
+- Adding a new OpenAI-compatible model is **config-only** — no code changes
 
 **Router Structure (`routers/`)**
 - `commands.py`: Handles all slash commands (/start, /help, /new, /provider, /model, /img, /insta, /ask)
@@ -122,12 +151,15 @@ In group chats, numeric selections (for model/provider) must be replies to bot m
 - Skips check for private chats
 - Blocks non-subscribers in groups from using bot
 
-**Configuration (`config.py`)**
+**Configuration (`config.py` + `providers.py`)**
 - All settings via environment variables
-- Model lists: OPENAI_MODELS, ANTHROPIC_MODELS, GEMINI_MODELS, GROK_MODELS
+- Built-in model lists: OPENAI_MODELS, ANTHROPIC_MODELS, GEMINI_MODELS, GROK_MODELS
 - Allowed models can be restricted via OPENAI_ALLOWED_MODELS env var (comma-separated)
-- DEFAULT_MODEL_PROVIDER determines initial provider selection
+- DEFAULT_MODEL_PROVIDER determines initial provider selection (falls back to the first
+  enabled provider if it isn't configured)
 - Special handling for reasoning models (OPENAI_MODELS_REASONING)
+- `providers.py` composes all of the above into the provider registry and adds any
+  `CUSTOM_PROVIDERS`; menus (`/provider`, `/model`) and dispatch are generated from it
 
 ### Message Flow
 
@@ -169,12 +201,18 @@ if not url.startswith(('http://', 'https://')):
 - Always call `session.clear_state()` in finally blocks after processing
 - Check state before processing numeric inputs to avoid conflicts
 
-**OpenAI API Changes**
-This bot uses OpenAI Responses API (not Chat Completions). Message format:
+**Two OpenAI API styles**
+The built-in `openai` provider uses the OpenAI **Responses API**:
 ```python
 input_items = [{"role": "system"|"user"|"assistant", "content": ...}]
 response = await client.responses.create(model=model, input=input_items)
 text = response.output_text
+```
+Grok and all self-hosted custom providers use the **Chat Completions API** via
+`OpenAICompatibleClient` / `Session.process_openai_chat_message()`:
+```python
+response = await client.chat.completions.create(model=model, messages=messages)
+text = response.choices[0].message.content
 ```
 
 **Error Handling**
