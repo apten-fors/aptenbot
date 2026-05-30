@@ -2,10 +2,16 @@ from aiogram import Router, F
 from aiogram.types import Message, FSInputFile, BufferedInputFile
 from aiogram.filters import Command
 from aiogram.dispatcher.event.bases import SkipHandler
-from config import OPENAI_MODEL, ANTHROPIC_MODEL, OPENAI_ALLOWED_MODELS, ANTHROPIC_ALLOWED_MODELS, GEMINI_MODEL, GEMINI_ALLOWED_MODELS, GROK_MODEL, GROK_ALLOWED_MODELS
+from providers import enabled_providers, models_for, default_model_for, is_image_capable
+from services.answer_service import select_client
 import re
 from utils.logging_config import logger
 from utils.telegram_utils import send_long_message
+
+_NO_IMAGE_SUPPORT = (
+    "⚠️ The current model doesn't support images. "
+    "Switch to a vision-capable model with /provider."
+)
 
 router = Router()
 
@@ -64,21 +70,19 @@ async def handle_provider_command(message: Message, session_manager):
 
     logger.info(f"Provider command from user {user_id} in chat {chat_id} (type: {chat_type})")
 
-    # Create provider options
+    # Build the provider menu from the registry — only configured providers.
     current_provider = session_manager.get_model_provider(user_id)
-    openai_current = "✓ " if current_provider == "openai" else ""
-    claude_current = "✓ " if current_provider == "anthropic" else ""
-    gemini_current = "✓ " if current_provider == "gemini" else ""
-    grok_current = "✓ " if current_provider == "grok" else ""
+    providers = enabled_providers()
+    if not providers:
+        await message.answer("No AI providers are configured.")
+        return
 
-    response = (
-        "🤖 <b>Select an AI provider:</b>\n\n"
-        f"1. {openai_current}OpenAI\n"
-        f"2. {claude_current}Claude (Anthropic)\n"
-        f"3. {gemini_current}Gemini (Google)\n"
-        f"4. {grok_current}Grok\n\n"
-        "To select a provider, reply with its number (e.g., '1')"
-    )
+    lines = ["🤖 <b>Select an AI provider:</b>\n"]
+    for i, p in enumerate(providers, start=1):
+        mark = "✓ " if p.id == current_provider else ""
+        lines.append(f"{i}. {mark}{p.name}")
+    lines.append("\nTo select a provider, reply with its number (e.g., '1')")
+    response = "\n".join(lines)
 
     # Create or update model selection state
     session = session_manager.get_or_create_session(user_id)
@@ -99,19 +103,9 @@ async def handle_model_command(message: Message, session_manager):
     session = session_manager.get_or_create_session(user_id)
     provider = session.get_provider()
 
-    # Get allowed models based on provider
-    if provider == "openai":
-        allowed_models = OPENAI_ALLOWED_MODELS
-        default_model = OPENAI_MODEL
-    elif provider == "anthropic":
-        allowed_models = ANTHROPIC_ALLOWED_MODELS
-        default_model = ANTHROPIC_MODEL
-    elif provider == "gemini":
-        allowed_models = GEMINI_ALLOWED_MODELS
-        default_model = GEMINI_MODEL
-    else:
-        allowed_models = GROK_ALLOWED_MODELS
-        default_model = GROK_MODEL
+    # Get allowed models for the current provider from the registry
+    allowed_models = models_for(provider)
+    default_model = default_model_for(provider)
 
     # Use allowed models or fallback to default if empty
     if not allowed_models:
@@ -140,7 +134,7 @@ async def handle_model_command(message: Message, session_manager):
     await message.answer(response, parse_mode="HTML")
 
 @router.message(F.text.regexp(r"^[1-9]\d*$"))
-async def handle_number_selection(message: Message, session_manager, openai_client, claude_client):
+async def handle_number_selection(message: Message, session_manager):
     user_id = message.from_user.id
     chat_type = message.chat.type
     logger.info(f"Handling number selection from user {user_id} in chat type: {chat_type}")
@@ -159,22 +153,16 @@ async def handle_number_selection(message: Message, session_manager, openai_clie
     if state == "selecting_provider":
         logger.info(f"Processing provider selection: {message.text}")
         try:
-            selection = int(message.text)
-            if selection == 1:
-                provider = "openai"
-            elif selection == 2:
-                provider = "anthropic"
-            elif selection == 3:
-                provider = "gemini"
-            elif selection == 4:
-                provider = "grok"
-            else:
-                await message.answer("❌ Invalid selection. Please choose 1, 2, 3 or 4.")
+            providers = enabled_providers()
+            idx = int(message.text) - 1
+            if not (0 <= idx < len(providers)):
+                await message.answer(f"❌ Invalid selection. Please choose 1-{len(providers)}.")
                 return
 
-            session.update_model(provider)
+            selected = providers[idx]
+            session.update_model(selected.id)
             await message.answer(
-                f"✅ Provider switched to <b>{provider.capitalize()}</b>.",
+                f"✅ Provider switched to <b>{selected.name}</b>.",
                 parse_mode="HTML"
             )
         finally:
@@ -185,14 +173,7 @@ async def handle_number_selection(message: Message, session_manager, openai_clie
     elif state == "selecting_specific_model":
         try:
             provider = session.get_provider()
-            if provider == "openai":
-                allowed_models = OPENAI_ALLOWED_MODELS
-            elif provider == "anthropic":
-                allowed_models = ANTHROPIC_ALLOWED_MODELS
-            elif provider == "gemini":
-                allowed_models = GEMINI_ALLOWED_MODELS
-            else:
-                allowed_models = GROK_ALLOWED_MODELS
+            allowed_models = models_for(provider)
 
             selected_idx = int(message.text) - 1
             if 0 <= selected_idx < len(allowed_models):
@@ -330,7 +311,7 @@ async def cmd_insta(message: Message, instagram_client):
             logger.debug(f"Skip deleting message (no rights or not allowed): {e}")
 
 @router.message(Command("ask"), ~F.photo)
-async def handle_ask_command(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
+async def handle_ask_command(message: Message, session_manager, provider_clients):
     user_id = message.from_user.id
 
     # Extract the actual question (remove the /ask part)
@@ -356,16 +337,13 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
             session = session_manager.get_or_create_session(user_id)
             model_provider = session_manager.get_model_provider(user_id)
 
-            # Process with image
-            if model_provider == "anthropic":
-                response = await claude_client.process_message_with_image(session, question, [file_url])
-            elif model_provider == "gemini":
-                response = await gemini_client.process_message_with_image(session, question, [file_url])
-            elif model_provider == "grok":
-                response = await grok_client.process_message_with_image(session, question, [file_url])
+            # Process with image (gated: custom/text-only providers can't do vision)
+            if not is_image_capable(model_provider):
+                response = _NO_IMAGE_SUPPORT
             else:
-                response = await openai_client.process_message_with_image(session, question, [file_url])
-            
+                client = select_client(provider_clients, model_provider)
+                response = await client.process_message_with_image(session, question, [file_url])
+
             await send_long_message(message, response)
             return
 
@@ -387,21 +365,15 @@ async def handle_ask_command(message: Message, session_manager, openai_client, c
     session = session_manager.get_or_create_session(user_id)
     provider = session.get_provider()
 
-    # Process the question using the appropriate provider
-    if provider == "anthropic":
-        response = await session.process_claude_message(question, claude_client)
-    elif provider == "gemini":
-        response = await session.process_gemini_message(question, gemini_client)
-    elif provider == "grok":
-        response = await session.process_grok_message(question, grok_client)
-    else:
-        response = await session.process_openai_message(question, openai_client)
+    # Process the question using the session's provider
+    client = select_client(provider_clients, provider)
+    response = await client.process_message(session, question)
 
     await send_long_message(message, response)
 
 # Handler for numeric responses in the form of a reply to a bot message in group chats
 @router.message(F.reply_to_message & F.text.regexp(r"^[1-9]\d*$"))
-async def handle_reply_number_selection(message: Message, session_manager, openai_client, claude_client):
+async def handle_reply_number_selection(message: Message, session_manager):
     # Check if the response is a reply to a bot message
     if not message.reply_to_message.from_user or message.reply_to_message.from_user.is_bot is False:
         return
@@ -435,22 +407,16 @@ async def handle_reply_number_selection(message: Message, session_manager, opena
     if state == "selecting_provider":
         logger.info(f"Processing provider selection (reply): {message.text}")
         try:
-            selection = int(message.text)
-            if selection == 1:
-                provider = "openai"
-            elif selection == 2:
-                provider = "anthropic"
-            elif selection == 3:
-                provider = "gemini"
-            elif selection == 4:
-                provider = "grok"
-            else:
-                await message.answer("❌ Invalid selection. Please choose 1, 2, 3 or 4.")
+            providers = enabled_providers()
+            idx = int(message.text) - 1
+            if not (0 <= idx < len(providers)):
+                await message.answer(f"❌ Invalid selection. Please choose 1-{len(providers)}.")
                 return
 
-            session.update_model(provider)
+            selected = providers[idx]
+            session.update_model(selected.id)
             await message.answer(
-                f"✅ Provider switched to <b>{provider.capitalize()}</b>.",
+                f"✅ Provider switched to <b>{selected.name}</b>.",
                 parse_mode="HTML"
             )
             # Mark message as handled to prevent other handlers from processing it
@@ -463,14 +429,7 @@ async def handle_reply_number_selection(message: Message, session_manager, opena
     elif state == "selecting_specific_model":
         try:
             provider = session.get_provider()
-            if provider == "openai":
-                allowed_models = OPENAI_ALLOWED_MODELS
-            elif provider == "anthropic":
-                allowed_models = ANTHROPIC_ALLOWED_MODELS
-            elif provider == "gemini":
-                allowed_models = GEMINI_ALLOWED_MODELS
-            else:
-                allowed_models = GROK_ALLOWED_MODELS
+            allowed_models = models_for(provider)
 
             selected_idx = int(message.text) - 1
             if 0 <= selected_idx < len(allowed_models):

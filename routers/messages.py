@@ -1,12 +1,13 @@
 from aiogram import Router, F
 from aiogram.types import Message
+from services.answer_service import select_client
 from utils.logging_config import logger
 from utils.telegram_utils import send_long_message
 
 router = Router()
 
 @router.message(F.chat.type == "private", F.text)
-async def handle_private_message(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
+async def handle_private_message(message: Message, session_manager, provider_clients):
     user_id = message.from_user.id
 
     user_message = message.text
@@ -18,23 +19,13 @@ async def handle_private_message(message: Message, session_manager, openai_clien
     # Add logging for debugging
     logger.info(f"Using model provider: {model_provider}")
 
-    if model_provider == "anthropic":
-        logger.info("Using Anthropic (Claude) client for processing")
-        reply = await claude_client.process_message(session, user_message)
-    elif model_provider == "gemini":
-        logger.info("Using Gemini client for processing")
-        reply = await gemini_client.process_message(session, user_message)
-    elif model_provider == "grok":
-        logger.info("Using Grok client for processing")
-        reply = await grok_client.process_message(session, user_message)
-    else:
-        logger.info("Using OpenAI client for processing")
-        reply = await openai_client.process_message(session, user_message)
+    client = select_client(provider_clients, model_provider)
+    reply = await client.process_message(session, user_message)
 
     await send_long_message(message, reply)
 
 @router.message((F.chat.type == "group") | (F.chat.type == "supergroup"), F.text)
-async def handle_group_message(message: Message, session_manager, openai_client, claude_client, gemini_client, grok_client):
+async def handle_group_message(message: Message, session_manager, provider_clients):
     bot_username = (await message.bot.me()).username
     bot_id = (await message.bot.me()).id
     message_text = message.text or "" # Ensure message_text is not None
@@ -120,18 +111,8 @@ async def handle_group_message(message: Message, session_manager, openai_client,
     logger.info(f"User {user_id} using model provider: {model_provider}")
 
     try:
-        if model_provider == "anthropic":
-            logger.info(f"Using Anthropic (Claude) client for user {user_id}")
-            reply = await claude_client.process_message(session, user_message)
-        elif model_provider == "gemini":
-            logger.info(f"Using Gemini client for user {user_id}")
-            reply = await gemini_client.process_message(session, user_message)
-        elif model_provider == "grok":
-            logger.info(f"Using Grok client for user {user_id}")
-            reply = await grok_client.process_message(session, user_message)
-        else:
-            logger.info(f"Using OpenAI client for user {user_id}")
-            reply = await openai_client.process_message(session, user_message)
+        client = select_client(provider_clients, model_provider)
+        reply = await client.process_message(session, user_message)
 
         await send_long_message(message, reply) # Use reply to keep context in group chat
         logger.info(f"Successfully processed and replied in group to user {user_id}.")

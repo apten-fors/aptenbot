@@ -1,21 +1,19 @@
-from config import DEFAULT_MODEL_PROVIDER
+from providers import enabled_providers, get_provider, default_provider_id
 
-# Simplified list for selecting only the provider, not specific models
+# Provider-selection list, generated from the registry so it always reflects the
+# providers that are actually configured (built-ins + CUSTOM_PROVIDERS).
 MODELS = [
-    {"id": "openai", "name": "OpenAI", "provider": "openai"},
-    {"id": "anthropic", "name": "Claude (Anthropic)", "provider": "anthropic"},
-    {"id": "gemini", "name": "Gemini (Google)", "provider": "gemini"},
-    {"id": "grok", "name": "Grok", "provider": "grok"},
+    {"id": p.id, "name": p.name, "provider": p.id}
+    for p in enabled_providers()
 ]
 
-# Default model from config
+# Default provider as a model dict. ``default_provider_id`` always returns a
+# valid id (falling back to the configured default), so DEFAULT_MODEL is safe
+# even when nothing is enabled (e.g. tests without credentials).
+_default_id = default_provider_id()
+_default_provider = get_provider(_default_id)
 DEFAULT_MODEL = {
-    "id": DEFAULT_MODEL_PROVIDER,
-    "name": (
-        "OpenAI" if DEFAULT_MODEL_PROVIDER == "openai" else
-        "Claude (Anthropic)" if DEFAULT_MODEL_PROVIDER == "anthropic" else
-        "Gemini (Google)" if DEFAULT_MODEL_PROVIDER == "gemini" else
-        "Grok"
-    ),
-    "provider": DEFAULT_MODEL_PROVIDER
+    "id": _default_id,
+    "name": _default_provider.name if _default_provider else _default_id,
+    "provider": _default_id,
 }
