@@ -6,6 +6,7 @@ from config import (
     SYSTEM_PROMPT,
     DEFAULT_MODEL_PROVIDER,
     OPENAI_REASONING_EFFORT,
+    CHAT_COMPLETIONS_MAX_TOKENS,
 )
 from providers import default_model_for
 from models.models_list import MODELS, DEFAULT_MODEL
@@ -289,14 +290,21 @@ class Session:
             async with chat_client.get_client() as client:
                 response = await client.chat.completions.create(
                     model=model_id,
-                    messages=history_messages
+                    messages=history_messages,
+                    max_tokens=CHAT_COMPLETIONS_MAX_TOKENS,
                 )
-            # Thinking models (e.g. Kimi K2 Thinking) may return the answer in
-            # ``reasoning_content`` with ``content`` left null; fall back to it.
-            msg = response.choices[0].message
-            assistant_message = msg.content or getattr(msg, "reasoning_content", None)
+            # Thinking models (e.g. Kimi K2.6) keep their chain-of-thought in
+            # ``reasoning_content`` and the user-facing answer in ``content``.
+            # Only ``content`` should ever be shown; if it's empty the model
+            # likely ran out of tokens mid-reasoning (finish_reason="length").
+            choice = response.choices[0]
+            assistant_message = choice.message.content
             if not assistant_message:
-                logger.warning("%s returned an empty response", provider_name)
+                logger.warning(
+                    "%s returned empty content (finish_reason=%s); raise "
+                    "CHAT_COMPLETIONS_MAX_TOKENS if this persists",
+                    provider_name, choice.finish_reason,
+                )
                 return f"{provider_name} returned an empty response. Please try again."
 
             messages.append({"role": "assistant", "content": assistant_message})
@@ -329,12 +337,17 @@ class Session:
             async with chat_client.get_client() as client:
                 response = await client.chat.completions.create(
                     model=model_to_use,
-                    messages=history_messages
+                    messages=history_messages,
+                    max_tokens=CHAT_COMPLETIONS_MAX_TOKENS,
                 )
-            msg = response.choices[0].message
-            reply = (msg.content or getattr(msg, "reasoning_content", None) or "").strip()
+            choice = response.choices[0]
+            reply = (choice.message.content or "").strip()
             if not reply:
-                logger.warning("%s returned an empty response", provider_name)
+                logger.warning(
+                    "%s returned empty content (finish_reason=%s); raise "
+                    "CHAT_COMPLETIONS_MAX_TOKENS if this persists",
+                    provider_name, choice.finish_reason,
+                )
                 return f"{provider_name} returned an empty response. Please try again."
 
             messages.append({"role": "user", "content": message + " [with images]"})

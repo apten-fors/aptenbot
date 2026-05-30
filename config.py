@@ -27,6 +27,12 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MAX_RETRIES = 3
 RETRY_DELAY = 1
 SESSION_EXPIRY = 3600  # 1 hour
+
+# Max output tokens for OpenAI-compatible /chat/completions (Grok + custom
+# providers like Kimi). Thinking models need enough room to finish their
+# reasoning AND emit the final answer; without this, gateways apply a tiny
+# default and the model runs out mid-thought, leaving `content` empty.
+CHAT_COMPLETIONS_MAX_TOKENS = int(os.getenv("CHAT_COMPLETIONS_MAX_TOKENS", "8192"))
 SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", "You are a helpful assistant.")
 _VALID_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 _reasoning_raw = os.getenv("OPENAI_REASONING_EFFORT", "").strip().lower() or None
