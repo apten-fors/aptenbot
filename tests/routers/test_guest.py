@@ -222,6 +222,18 @@ async def test_guest_keeps_thinking_for_builtin_provider(session_manager, client
     assert "extra_body" not in session.data
 
 
+# guest sessions use the lightweight guest prompt, not the main SYSTEM_PROMPT
+@pytest.mark.asyncio
+async def test_guest_uses_guest_system_prompt(session_manager, clients, allow_limiter):
+    message = make_message()
+    with patch("routers.guest.GUEST_ACCESS_MODE", "public"), \
+         patch("routers.guest.GUEST_SYSTEM_PROMPT", "GUEST-PROMPT"), \
+         patch("routers.guest.generate_text_answer", new=AsyncMock(return_value="hi")) as gen:
+        await _run(message, session_manager, clients, allow_limiter)
+    session = gen.call_args.kwargs["session"]
+    assert session.data["messages"][0] == {"role": "developer", "content": "GUEST-PROMPT"}
+
+
 # provider-error string is replaced with the friendly fallback
 @pytest.mark.asyncio
 async def test_provider_error_string_replaced_with_fallback(session_manager, clients, allow_limiter):

@@ -81,6 +81,18 @@ GUEST_RATE_LIMIT_PER_USER_MINUTE = int(os.getenv("TG_GUEST_RATE_LIMIT_PER_USER_M
 # OpenAI-compatible providers so they answer within that window. Built-in
 # providers and the direct-chat path are unaffected.
 GUEST_DISABLE_THINKING = os.getenv("TG_GUEST_DISABLE_THINKING", "true").strip().lower() in {"1", "true", "yes", "on"}
+# Guests get a deliberately lightweight system prompt instead of the main
+# SYSTEM_PROMPT: the latter's <self_reflection>/rubric instructions inflate the
+# answer, and at ~17 tok/s a long reply blows past Telegram's guest-query window
+# even with thinking off. This one asks for a short, direct answer. Override with
+# TG_GUEST_SYSTEM_PROMPT; an empty value falls back to this default.
+_DEFAULT_GUEST_SYSTEM_PROMPT = (
+    "You are a helpful assistant answering a single one-off question from a guest. "
+    "Reply in the user's language. Be brief and direct: at most a few sentences, "
+    "plain text, no role-play, no preamble, no headers, no rubric. Give the answer "
+    "immediately."
+)
+GUEST_SYSTEM_PROMPT = os.getenv("TG_GUEST_SYSTEM_PROMPT", "").strip() or _DEFAULT_GUEST_SYSTEM_PROMPT
 
 # Update types requested from Telegram during polling. "guest_message" is
 # load-bearing: Telegram won't deliver guest updates unless it is listed here.

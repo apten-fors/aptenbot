@@ -39,6 +39,7 @@ def build_ephemeral_session(
     model: Optional[str] = None,
     *,
     extra_body: Optional[Dict] = None,
+    system_prompt: Optional[str] = None,
 ) -> Session:
     """Build a one-shot ``Session`` backed by a fresh dict.
 
@@ -46,12 +47,14 @@ def build_ephemeral_session(
     the developer/system prompt and the provider/model selection, and is
     discarded by the caller after use.
 
-    ``extra_body`` is an optional per-request body merged into OpenAI-compatible
-    chat/completions calls (e.g. ``{"chat_template_kwargs": {"thinking": False}}``
-    to suppress chain-of-thought on the guest path).
+    ``system_prompt`` overrides the default ``SYSTEM_PROMPT`` (the guest path
+    passes a lighter one to keep answers short and fast). ``extra_body`` is an
+    optional per-request body merged into OpenAI-compatible chat/completions calls
+    (e.g. ``{"chat_template_kwargs": {"thinking": False}}`` to suppress
+    chain-of-thought on the guest path).
     """
     data = {
-        "messages": [{"role": "developer", "content": SYSTEM_PROMPT}],
+        "messages": [{"role": "developer", "content": system_prompt or SYSTEM_PROMPT}],
         "model_provider": provider,
         "model": model or default_model_for(provider),
         "image_model": "openai",

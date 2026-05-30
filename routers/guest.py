@@ -16,6 +16,7 @@ from config import (
     GUEST_ALLOWED_USER_IDS,
     GUEST_DISABLE_THINKING,
     GUEST_MAX_RESPONSE_CHARS,
+    GUEST_SYSTEM_PROMPT,
     GUEST_TIMEOUT_SECONDS,
 )
 from providers import is_custom_provider
@@ -129,7 +130,9 @@ async def handle_guest_message(
     extra_body = None
     if GUEST_DISABLE_THINKING and is_custom_provider(provider):
         extra_body = {"chat_template_kwargs": {"thinking": False}}
-    session = build_ephemeral_session(provider, extra_body=extra_body)
+    session = build_ephemeral_session(
+        provider, extra_body=extra_body, system_prompt=GUEST_SYSTEM_PROMPT,
+    )
 
     logger.info(
         "guest_message_llm_started caller_user_id=%s guest_query_id=%s provider=%s",
