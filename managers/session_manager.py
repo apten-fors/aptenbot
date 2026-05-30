@@ -291,7 +291,13 @@ class Session:
                     model=model_id,
                     messages=history_messages
                 )
-            assistant_message = response.choices[0].message.content
+            # Thinking models (e.g. Kimi K2 Thinking) may return the answer in
+            # ``reasoning_content`` with ``content`` left null; fall back to it.
+            msg = response.choices[0].message
+            assistant_message = msg.content or getattr(msg, "reasoning_content", None)
+            if not assistant_message:
+                logger.warning("%s returned an empty response", provider_name)
+                return f"{provider_name} returned an empty response. Please try again."
 
             messages.append({"role": "assistant", "content": assistant_message})
             self.data['messages'] = messages
@@ -325,7 +331,11 @@ class Session:
                     model=model_to_use,
                     messages=history_messages
                 )
-            reply = response.choices[0].message.content.strip()
+            msg = response.choices[0].message
+            reply = (msg.content or getattr(msg, "reasoning_content", None) or "").strip()
+            if not reply:
+                logger.warning("%s returned an empty response", provider_name)
+                return f"{provider_name} returned an empty response. Please try again."
 
             messages.append({"role": "user", "content": message + " [with images]"})
             messages.append({"role": "assistant", "content": reply})

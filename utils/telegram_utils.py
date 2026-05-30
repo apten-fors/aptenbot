@@ -62,6 +62,7 @@ async def send_long_message(message, text: str) -> None:
     falls back to sending the original unescaped text for that chunk.
     """
     if not text:
+        logger.warning("send_long_message called with empty text; nothing sent")
         return
     chunks = split_message(text)
     for chunk in chunks:
