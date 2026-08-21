@@ -96,4 +96,12 @@ GUEST_SYSTEM_PROMPT = os.getenv("TG_GUEST_SYSTEM_PROMPT", "").strip() or _DEFAUL
 
 # Update types requested from Telegram during polling. "guest_message" is
 # load-bearing: Telegram won't deliver guest updates unless it is listed here.
-ALLOWED_UPDATES = ["message", "callback_query", "guest_message"]
+ALLOWED_UPDATES = [
+    "message",
+    "callback_query",
+    "guest_message",
+    "business_connection",
+    "business_message",
+    "edited_business_message",
+    "deleted_business_messages",
+]

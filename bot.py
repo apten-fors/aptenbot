@@ -19,7 +19,13 @@ from providers import (
     GEMINI_STYLE,
     OPENAI_CHAT,
 )
-from routers import commands_router, messages_router, media_router, guest_router
+from routers import (
+    business_router,
+    commands_router,
+    guest_router,
+    media_router,
+    messages_router,
+)
 from middlewares.subscription import SubscriptionMiddleware
 from middlewares.logging import LoggingMiddleware
 from middlewares.dependencies import DependencyMiddleware
@@ -92,6 +98,12 @@ async def main():
     )
     dp.message.middleware(dependency_middleware)
 
+    # Secretary Mode receives messages on a separate update observer. Do not
+    # apply SubscriptionMiddleware here: message.from_user is the account
+    # owner's correspondent, not the owner of the business connection.
+    dp.business_message.middleware(LoggingMiddleware(redact_message_text=True))
+    dp.business_message.middleware(dependency_middleware)
+
     # Guest Mode dependency injection. Guest handlers need the session manager,
     # the provider-client map, and the rate limiter. Subscription/logging
     # middlewares are intentionally NOT applied here: subscription is chat-based
@@ -107,8 +119,9 @@ async def main():
     dp.include_router(messages_router)
     dp.include_router(media_router)
     dp.include_router(guest_router)
+    dp.include_router(business_router)
 
-    # Verify Guest Mode is enabled for this bot (must not crash on failure).
+    # Verify optional Telegram bot capabilities (must not crash on failure).
     try:
         me = await bot.get_me()
         if not getattr(me, "supports_guest_queries", False):
@@ -116,8 +129,13 @@ async def main():
                 "Guest Mode is not enabled for this bot (supports_guest_queries is not true). "
                 "Enable it in BotFather > Bot Settings > Guest Mode."
             )
+        if not getattr(me, "can_connect_to_business", False):
+            logger.warning(
+                "Telegram Secretary Mode is not enabled for this bot. "
+                "Enable it in BotFather."
+            )
     except Exception as e:
-        logger.warning("Could not verify supports_guest_queries on startup: %s", e)
+        logger.warning("Could not verify Telegram bot capabilities on startup: %s", e)
 
     print(f"\n{Fore.GREEN}Starting the bot...{Style.RESET_ALL}")
     logger.info("Starting the bot application")
