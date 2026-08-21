@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, List, Union, Optional
+from typing import Dict, Hashable, List, Union, Optional
 from config import (
     SESSION_EXPIRY,
     SYSTEM_PROMPT,
@@ -14,9 +14,9 @@ from utils.logging_config import logger
 
 class SessionManager:
     def __init__(self):
-        self.sessions: Dict[int, Dict[str, Union[List[Dict[str, str]], float, str]]] = {}
+        self.sessions: Dict[Hashable, Dict[str, Union[List[Dict[str, str]], float, str]]] = {}
 
-    def get_or_create_session(self, user_id: int) -> 'Session':
+    def get_or_create_session(self, user_id: Hashable) -> 'Session':
         current_time = time.time()
         if user_id not in self.sessions or current_time - self.sessions[user_id]['last_activity'] > SESSION_EXPIRY:
             self.sessions[user_id] = {
@@ -32,7 +32,7 @@ class SessionManager:
 
         return Session(self.sessions[user_id])
 
-    def create_new_session(self, user_id: int) -> None:
+    def create_new_session(self, user_id: Hashable) -> None:
         # Preserve model preferences when creating a new session
         model_provider = self.sessions.get(user_id, {}).get('model_provider', DEFAULT_MODEL_PROVIDER)
         model = self.sessions.get(user_id, {}).get('model', default_model_for(model_provider))
@@ -47,13 +47,13 @@ class SessionManager:
             'state': None
         }
 
-    def get_model_provider(self, user_id: int) -> str:
+    def get_model_provider(self, user_id: Hashable) -> str:
         """Get the current model provider for a user session"""
         if user_id not in self.sessions:
             return DEFAULT_MODEL_PROVIDER
         return self.sessions[user_id].get('model_provider', DEFAULT_MODEL_PROVIDER)
 
-    def set_model_provider(self, user_id: int, provider: str) -> None:
+    def set_model_provider(self, user_id: Hashable, provider: str) -> None:
         """Set the model provider for a user session"""
         if user_id in self.sessions:
             self.sessions[user_id]['model_provider'] = provider
@@ -68,7 +68,7 @@ class SessionManager:
                 'state': None
             }
 
-    def get_model(self, user_id: int) -> dict:
+    def get_model(self, user_id: Hashable) -> dict:
         """Get the current provider model for a user session"""
         if user_id not in self.sessions:
             return DEFAULT_MODEL
